@@ -873,42 +873,42 @@ test("an already aborted execution performs no service work and creates no works
     await assert.rejects(f.run(), error => error === f.leaseError);
     assert.deepEqual(f.events, []);
   });
+});
 
-  for (const phase of ["download", "probe", "capture", "upload:evidence", "analyze", "embed"]) {
-    for (const mode of ["failure", "abort"] as const) {
-      test(`ingest cleans partial files on ${mode} during ${phase}`, async () => {
-        await withFixture(async f => {
-          const failure = new Error(`Test ${phase} failed`);
-          let reached = false;
-          f.state.afterRemote = event => {
-            if (event !== phase) return;
-            reached = true;
-            if (mode === "abort") f.loseLease(true);
-            else throw failure;
-          };
-          await assert.rejects(f.run(), error => error === (mode === "abort" ? f.leaseError : failure));
-          assert.equal(reached, true);
-          assert.deepEqual(f.saves, []);
-          assert.deepEqual(f.projections, []);
-          assert.equal(f.videoSaves.some(value => value.status === "ready"), false);
-        });
+for (const phase of ["download", "probe", "capture", "upload:evidence", "analyze", "embed"]) {
+  for (const mode of ["failure", "abort"] as const) {
+    test(`ingest cleans partial files on ${mode} during ${phase}`, async () => {
+      await withFixture(async f => {
+        const failure = new Error(`Test ${phase} failed`);
+        let reached = false;
+        f.state.afterRemote = event => {
+          if (event !== phase) return;
+          reached = true;
+          if (mode === "abort") f.loseLease(true);
+          else throw failure;
+        };
+        await assert.rejects(f.run(), error => error === (mode === "abort" ? f.leaseError : failure));
+        assert.equal(reached, true);
+        assert.deepEqual(f.saves, []);
+        assert.deepEqual(f.projections, []);
+        assert.equal(f.videoSaves.some(value => value.status === "ready"), false);
       });
-    }
-  }
-
-  test("ingest rejects an empty extracted frame rather than uploading evidence or inventing analysis", async () => {
-    await withFixture(async f => {
-      const capture = f.media.captureFrame;
-      f.media.captureFrame = async (...args) => {
-        await capture(...args);
-        await writeFile(args[2], "");
-      };
-      await assert.rejects(f.run(), PermanentError);
-      assert.deepEqual(f.uploads, []);
-      assert.deepEqual(f.analyses, []);
-      assert.deepEqual(f.embeddedTexts, []);
-      assert.deepEqual(f.saves, []);
     });
+  }
+}
+
+test("ingest rejects an empty extracted frame rather than uploading evidence or inventing analysis", async () => {
+  await withFixture(async f => {
+    const capture = f.media.captureFrame;
+    f.media.captureFrame = async (...args) => {
+      await capture(...args);
+      await writeFile(args[2], "");
+    };
+    await assert.rejects(f.run(), PermanentError);
+    assert.deepEqual(f.uploads, []);
+    assert.deepEqual(f.analyses, []);
+    assert.deepEqual(f.embeddedTexts, []);
+    assert.deepEqual(f.saves, []);
   });
 });
 
