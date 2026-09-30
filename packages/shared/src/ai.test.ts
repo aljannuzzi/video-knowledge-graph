@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { AI } from "./ai.js";
 import { loadConfig } from "./config.js";
 import { isPermanentError } from "./types.js";
+import { queryPlanJsonSchema } from "./schemas.js";
 
 const environment = {
   ENVIRONMENT: "local", LOCAL_AUTH_DISABLED: "true", AZURE_STORAGE_ACCOUNT: "teststore",
@@ -48,10 +49,30 @@ test("malformed model JSON is permanent with no fallback", async () => {
   const ai = new AI(config, credential, fetcher((_url, body) => {
     assert.ok(body.max_completion_tokens);
     assert.equal(body.max_tokens, undefined);
-    assert.deepEqual(body.response_format, { type: "json_object" });
+    assert.equal(body.response_format.type, "json_schema");
+    assert.equal(body.response_format.json_schema.strict, true);
+    assert.deepEqual(body.response_format.json_schema.schema, queryPlanJsonSchema);
     return Response.json({ choices: [{ finish_reason: "stop", message: { content: "not json" } }] });
   }));
   await assert.rejects(ai.plan("person sitting"), error => isPermanentError(error));
+});
+test("query planning uses open noun vocabulary and normalizes nullable structured fields", async () => {
+  const ai = new AI(config, credential, fetcher((_url, body) => {
+    assert.equal(body.response_format.json_schema.schema.properties.entities.items.properties.name.enum, undefined);
+    assert.match(body.messages[0].content, /Prepositions ARE relationships/);
+    const plan = {
+      entities: [
+        { variable: "c", name: "cat", type: "animal", actorName: null },
+        { variable: "s", name: "sofa", type: "object", actorName: null }
+      ],
+      relations: [{ subject: "c", predicate: "on", object: "s" }],
+      explanation: "Gato sobre o sofá."
+    };
+    return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(plan) } }] });
+  }));
+  const plan = await ai.plan("gato no sofa");
+  assert.equal(plan.entities[0].actorName, undefined);
+  assert.deepEqual(plan.relations, [{ subject: "c", predicate: "on", object: "s" }]);
 });
 test("invalid, truncated, and empty embeddings are rejected", async () => {
   const ai = new AI(config, credential, fetcher(() => Response.json({ data: [{ embedding: [1] }] })));

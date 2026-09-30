@@ -32,8 +32,8 @@ export const clipRequestSchema = z.object({
 export const queryPlanSchema = z.object({
   entities: z.array(z.object({
     variable, name: label,
-    type: entityType.optional(),
-    actorName: actorName.optional()
+    type: entityType.nullish().transform(value => value ?? undefined),
+    actorName: actorName.nullish().transform(value => value ?? undefined)
   }).strict()).min(1).max(8),
   relations: z.array(z.object({
     subject: variable, predicate: z.enum(predicates), object: variable
@@ -59,6 +59,42 @@ export const queryPlanSchema = z.object({
   ...plan,
   entities: plan.entities.map(entity => ({ ...entity, type: canonicalType(entity.name, entity.type) }))
 }));
+
+export const queryPlanJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["entities", "relations", "explanation"],
+  properties: {
+    entities: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["variable", "name", "type", "actorName"],
+        properties: {
+          variable: { type: "string" },
+          name: { type: "string", description: "Open vocabulary singular English noun. Not restricted to examples." },
+          type: { type: ["string", "null"], enum: ["person", "animal", "object", "place", "action", "concept", null] },
+          actorName: { type: ["string", "null"], description: "Only an explicitly requested editorial actor name; otherwise null." }
+        }
+      }
+    },
+    relations: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["subject", "predicate", "object"],
+        properties: {
+          subject: { type: "string" },
+          predicate: { type: "string", enum: predicates },
+          object: { type: "string" }
+        }
+      }
+    },
+    explanation: { type: "string" }
+  }
+};
 
 export const visualAnalysisSchema = z.object({
   caption: z.string().trim().min(1).max(4000),

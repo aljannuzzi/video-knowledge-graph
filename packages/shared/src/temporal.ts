@@ -1,5 +1,5 @@
 import type { QueryPlan, SceneEntity, SceneRelation, Timecode } from "./index.js";
-import { normalizeLabel, symmetricPredicates } from "./ontology.js";
+import { normalizeLabel, observationPredicates, symmetricPredicates } from "./ontology.js";
 
 export function intersectIntervals(intervals: Timecode[]): Timecode | undefined {
   if (!intervals.length) return undefined;
@@ -46,7 +46,7 @@ export function matchTemporal(
       const forward = relation.subject === assigned[query.subject] && relation.object === assigned[query.object];
       const backward = symmetricPredicates.has(query.predicate) &&
         relation.subject === assigned[query.object] && relation.object === assigned[query.subject];
-      if ((!forward && !backward) || relation.predicate !== query.predicate) continue;
+      if ((!forward && !backward) || !observationPredicates(query.predicate).includes(relation.predicate)) continue;
       const common = intersectIntervals([timecode, relation.timecode]);
       if (common) walkRelations(index + 1, common);
     }

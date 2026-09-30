@@ -8,6 +8,11 @@ export const predicates = [
 ] as const;
 export const symmetricPredicates = new Set<string>(["near", "next_to", "touching", "interacting_with", "talking_to", "walking_with", "running_with", "playing_with"]);
 
+// Entailment is one-way: a posture on a surface proves "on", not the reverse.
+export function observationPredicates(requested: string): readonly string[] {
+  return requested === "on" ? ["on", "sitting_on", "standing_on", "lying_on"] : [requested];
+}
+
 export function normalizeLabel(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase("en-US").trim().replace(/\s+/g, " ");
 }
@@ -22,6 +27,29 @@ export function canonicalType(name: string, proposed?: SceneEntity["type"]): Sce
   const key = normalizeLabel(name);
   return Object.hasOwn(knownTypes, key) ? knownTypes[key] : proposed;
 }
+
+export const queryOntologyPrompt = `Entity.name is an OPEN string vocabulary, not an enum:
+any requested noun is allowed, even if absent from the catalog. Use singular English canonical nouns.
+Examples are NOT a list of allowed names. gato -> cat, cachorro -> dog, pessoa -> person, crianca -> child,
+sofa/sofá/couch -> sofa. Entity.type is a separate category: person, animal, object, place, action, concept.
+Cat/dog are animal; sofa/table/chair are object; person/adult/child are person.
+Predicates alone use the CLOSED list: ${predicates.join(", ")}.
+Use exactly the relation requested; never assume an unstated posture or require an explicit verb.
+Prepositions ARE relationships: "X no sofa", "X sobre o sofa", "X on the couch" -> X on sofa.
+"X sentado no sofa" -> sitting_on; "X deitado no sofa" -> lying_on;
+"X em pe no sofa" -> standing_on; "X ao lado do sofa" -> next_to.
+A generic on query is checked against on OR sitting_on OR standing_on OR lying_on observations by
+the graph engine. Do not encode those alternatives as multiple simultaneous relations.
+"pessoa e gato no sofa" distributes the location to both subjects, using ONE sofa variable:
+person on sofa AND cat on sofa. It is NOT a bare noun list. Do not add a person-cat relation.
+"gato no sofa" needs only cat and sofa; never add a person because one may exist in the catalog.
+"pessoa no sofa" needs only person and sofa.
+"pessoas sentadas a mesa com enfeites de natal" uses sitting_at table and table decorated_with christmas decoration.
+"ator conversando com crianca" uses talking_to, not mere proximity. Named actors require actorName
+and type person, matched only to editorial identity; names do not come from visual recognition.
+Use null for absent actorName and unknown type. Generic person includes anonymous adult and child.
+All predicates have subject-to-object direction; talking_to/next_to are symmetric.
+Do not weaken explicit constraints. sitting_on does NOT accept merely on or lying_on observations.`;
 
 export const ontologyPrompt = `Use singular, lowercase, plain English canonical nouns for entities
 (person, sofa, dog, chair, table), regardless of input language. Couch is sofa.

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { QueryPlan, Timecode } from "./index.js";
-import { normalizeLabel, symmetricPredicates } from "./ontology.js";
+import { normalizeLabel, observationPredicates, symmetricPredicates } from "./ontology.js";
 import { queryPlanSchema } from "./schemas.js";
 import { canVerifyConjunction, intersectIntervals } from "./temporal.js";
 import type { SceneRecord } from "./types.js";
@@ -43,10 +43,12 @@ export function compileMatch(planInput: QueryPlan, scene: SceneRecord): {
     script += `.as('v${index}').limit(256)`;
   });
   plan.relations.forEach((relation, index) => {
-    bindings[`predicate${index}`] = relation.predicate;
+    const accepted = observationPredicates(relation.predicate);
+    bindings[`predicate${index}`] = accepted.length === 1 ? accepted[0] : accepted;
+    const predicateFilter = accepted.length === 1 ? `predicate${index}` : `within(predicate${index})`;
     const symmetric = symmetricPredicates.has(relation.predicate);
     script += `.select('${variables.get(relation.subject)}').${symmetric ? "bothE" : "outE"}('observed')` +
-      `.has('metadataVersion',version).has('predicate',predicate${index}).as('r${index}')` +
+      `.has('metadataVersion',version).has('predicate',${predicateFilter}).as('r${index}')` +
       `.${symmetric ? "otherV" : "inV"}().where(eq('${variables.get(relation.object)}')).limit(256)`;
   });
   const keys = [
