@@ -1,3 +1,5 @@
+import type { SceneEntity } from "./index.js";
+
 export const predicates = [
   "sitting_on", "standing_on", "lying_on", "near", "next_to", "holding", "wearing",
   "looking_at", "walking_toward", "walking_with", "riding", "inside", "in_front_of",
@@ -10,9 +12,22 @@ export function normalizeLabel(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase("en-US").trim().replace(/\s+/g, " ");
 }
 
+const knownTypes: Record<string, SceneEntity["type"]> = {
+  person: "person", adult: "person", child: "person",
+  cat: "animal", dog: "animal", bird: "animal", horse: "animal",
+  sofa: "object", chair: "object", table: "object", candle: "object", plate: "object",
+  window: "object", rug: "object", "christmas decoration": "object", "christmas tree": "object"
+};
+export function canonicalType(name: string, proposed?: SceneEntity["type"]): SceneEntity["type"] | undefined {
+  const key = normalizeLabel(name);
+  return Object.hasOwn(knownTypes, key) ? knownTypes[key] : proposed;
+}
+
 export const ontologyPrompt = `Use singular, lowercase, plain English canonical nouns for entities
 (person, sofa, dog, chair, table), regardless of input language. Couch is sofa.
 Use ONLY these relationship predicates: ${predicates.join(", ")}.
+Entity types must be consistent: person/adult/child are person; cat/dog/bird/horse are animal,
+not object. Sofa/table/chair and Christmas decorations are object.
 Choose the most specific supported predicate; do not invent predicates or infer unstated relationships.
 People are anonymous occurrences with type person and name person, child, or adult.
 Use child or adult only when the broad visual category is clear; do not estimate exact age.

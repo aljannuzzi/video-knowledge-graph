@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Timecode } from "./index.js";
 import { ValidationError } from "./types.js";
-import { predicates } from "./ontology.js";
+import { canonicalType, predicates } from "./ontology.js";
 import { canVerifyConjunction } from "./temporal.js";
 
 export const identifierSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/);
@@ -55,7 +55,10 @@ export const queryPlanSchema = z.object({
       ctx.addIssue({ code: "custom", message: "Editorial actor constraints require person type" });
     }
   }
-});
+}).transform(plan => ({
+  ...plan,
+  entities: plan.entities.map(entity => ({ ...entity, type: canonicalType(entity.name, entity.type) }))
+}));
 
 export const visualAnalysisSchema = z.object({
   caption: z.string().trim().min(1).max(4000),
@@ -93,6 +96,7 @@ export function validateVisualAnalysis(value: unknown, bounds: Timecode): Visual
   // Even an instruction-following vision model is not an identity authority.
   // Discard visual names for people; actor identities enter only via editor API.
   for (const entity of result.data.entities) {
+    entity.type = canonicalType(entity.name, entity.type) ?? entity.type;
     if (entity.type === "person") {
       const category = entity.name.toLowerCase().trim();
       entity.name = ["person", "child", "adult"].includes(category) ? category : "person";

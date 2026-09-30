@@ -24,8 +24,8 @@ export async function search(
     if (!current || current.graphStatus !== "ready" || current.metadataVersion !== scene.metadataVersion) continue;
     hits.push({
       scene: publicScene(current), score: Math.max(0, Math.min(1, 1 - candidate.distance)),
-      rationale: `${plan.explanation} Native graph bindings verified against active version ${scene.metadataVersion}; ` +
-        "relations share this estimated visual interval. Vector candidate retrieval is non-exhaustive.",
+      rationale: `${plan.explanation} Relações verificadas no grafo nativo, versão ${scene.metadataVersion}; ` +
+        "este intervalo visual é estimado. A recuperação de candidatos não é exaustiva.",
       matchedTimecode: intervals[0], graphVerified: true
     });
     if (hits.length >= (request.limit ?? 10)) break;

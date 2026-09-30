@@ -829,6 +829,18 @@ resource workerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
       scale: {
         maxReplicas: 1
         minReplicas: 1
+        rules: [
+          {
+            name: 'worker-cpu'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '80'
+              }
+            }
+          }
+        ]
       }
     }
   }

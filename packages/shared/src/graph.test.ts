@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Graph, gremlinOptions } from "./graph.js";
+import { Graph, graphFailure, gremlinOptions } from "./graph.js";
 import type { Config, SceneRecord } from "./types.js";
 
 const scene: SceneRecord = {
@@ -21,12 +21,39 @@ test("projection performs native occurrence and temporal-edge writes, no JSON gr
   await graph.project(scene);
   assert.ok(calls.some(call => call.script.includes("addV(")));
   assert.ok(calls.some(call => call.script.includes("addE(")));
+  assert.ok(calls.some(call => call.script.includes(".property(single,")));
   assert.equal(calls.filter(call => call.bindings.vertexLabel === "Actor").length, 0);
   const observation = calls.find(call => call.bindings.edgeLabel === "observed");
   assert.ok(observation);
   assert.ok(Object.values(observation.bindings).includes("sitting_on"));
   assert.ok(Object.values(observation.bindings).includes("startSeconds"));
   assert.ok(Object.values(observation.bindings).includes(2));
+});
+test("Cosmos wrapped 429s are retried per operation without restarting projection", async () => {
+  assert.equal(graphFailure(Object.assign(new Error("RequestRateTooLargeException"), { statusCode: 500 })).statusCode, 429);
+  let first = true;
+  const delays: number[] = [];
+  const graph = new Graph(config, { getScene: async () => scene }, {
+    submit: async () => {
+      if (first) {
+        first = false;
+        throw Object.assign(new Error("TooManyRequests (429)"), { statusCode: 500 });
+      }
+      return { toArray: () => [] };
+    },
+    close: async () => undefined
+  }, async ms => { delays.push(ms); });
+  await graph.project(scene);
+  assert.deepEqual(delays, [1000]);
+});
+test("permanent Gremlin errors are not retried", async () => {
+  let calls = 0;
+  const graph = new Graph(config, { getScene: async () => scene }, {
+    submit: async () => { calls++; throw Object.assign(new Error("Syntax error"), { statusCode: 400 }); },
+    close: async () => undefined
+  }, async () => assert.fail("Do not retry permanent errors"));
+  await assert.rejects(graph.project(scene), /400/);
+  assert.equal(calls, 1);
 });
 test("only editor assignments project canonical Actor nodes", async () => {
   const edited = { ...scene, metadataVersion: "2", entities: [{ ...scene.entities[0], actorName: "Editor Name", identitySource: "editor" as const }, scene.entities[1]] };

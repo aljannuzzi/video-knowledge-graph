@@ -20,6 +20,20 @@ type GraphNode = { id: string; label: string; type: string };
 type GraphEdge = { id: string; source: string; target: string; label: string; startSeconds: number; endSeconds: number };
 export type MaterializedGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
 
+export function graphFailure(error: unknown): { statusCode: number; retryAfterMs: number } {
+  const details = error instanceof Error ? error.message : "";
+  const native = error && typeof error === "object" ? error as { statusCode?: unknown; statusAttributes?: unknown } : {};
+  const throttled = Number(native.statusCode) === 429 || /RequestRateTooLargeException|TooManyRequests\s*\(429\)/.test(details);
+  const attributes = native.statusAttributes instanceof Map
+    ? Object.fromEntries(native.statusAttributes) : native.statusAttributes;
+  const delay = attributes && typeof attributes === "object"
+    ? Number((attributes as Record<string, unknown>)["x-ms-retry-after-ms"]) : NaN;
+  return {
+    statusCode: throttled ? 429 : Number(native.statusCode) || 503,
+    retryAfterMs: Number.isFinite(delay) && delay > 0 ? Math.min(10_000, delay) : 1000
+  };
+}
+
 function plain(value: unknown): unknown {
   if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]) => [String(key), plain(item)]));
   if (Array.isArray(value)) return value.map(plain);
@@ -41,7 +55,12 @@ export function gremlinOptions(config: Config, driver: Driver): Record<string, u
 
 export class Graph {
   private readonly client: Client;
-  constructor(private readonly config: Config, private readonly store: Pick<Store, "getScene">, client?: Client) {
+  constructor(
+    private readonly config: Config,
+    private readonly store: Pick<Store, "getScene">,
+    client?: Client,
+    private readonly sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
+  ) {
     if (client) { this.client = client; return; }
     const require = createRequire(import.meta.url);
     if (require("gremlin/package.json").version !== "3.4.13") throw new Error("Gremlin driver must be pinned to 3.4.13");
@@ -50,24 +69,33 @@ export class Graph {
   }
 
   private async submit(script: string, bindings: Record<string, unknown>): Promise<unknown[]> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const result = await Promise.race([
-        this.client.submit(script, bindings, { evaluationTimeout: 25_000 }),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(() => {
-            void this.client.close().catch(() => undefined);
-            reject(Object.assign(new Error("Graph request timed out"), { statusCode: 503 }));
-          }, 30_000);
-        })
-      ]);
-      return result.toArray().map(plain);
-    } catch (error) {
-      const statusCode = Number((error as { statusCode?: unknown })?.statusCode);
-      // Never log Gremlin bindings, account keys, source media, or model contents.
-      throw Object.assign(new Error(`Graph request failed${Number.isFinite(statusCode) ? ` (${statusCode})` : ""}`),
-        { statusCode: Number.isFinite(statusCode) ? statusCode : 503 });
-    } finally { clearTimeout(timer); }
+    for (let attempt = 0; attempt < 6; attempt++) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const result = await Promise.race([
+          this.client.submit(script, bindings, { evaluationTimeout: 25_000 }),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              void this.client.close().catch(() => undefined);
+              reject(Object.assign(new Error("Graph request timed out"), { statusCode: 503 }));
+            }, 30_000);
+          })
+        ]);
+        return result.toArray().map(plain);
+      } catch (error) {
+        clearTimeout(timer);
+        const failure = graphFailure(error);
+        // Cosmos can wrap a data-plane 429 in a Gremlin 500. Retry this
+        // deterministic operation instead of restarting the entire scene.
+        if (failure.statusCode === 429 && attempt < 5) {
+          await this.sleep(Math.min(10_000, failure.retryAfterMs * 2 ** attempt));
+          continue;
+        }
+        console.error(`[graph] request failed status=${failure.statusCode} attempts=${attempt + 1}`);
+        throw Object.assign(new Error(`Graph request failed (${failure.statusCode})`), { statusCode: failure.statusCode });
+      } finally { clearTimeout(timer); }
+    }
+    throw new Error("Graph retry budget exhausted");
   }
 
   private async vertex(id: string, pk: string, label: "Scene" | "Occurrence" | "Actor", properties: Record<string, string | number>): Promise<void> {
@@ -76,7 +104,7 @@ export class Graph {
     Object.entries(properties).forEach(([key, value], index) => {
       bindings[`key${index}`] = key;
       bindings[`value${index}`] = value;
-      script += `.property(key${index},value${index})`;
+      script += `.property(single,key${index},value${index})`;
     });
     await this.submit(script, bindings);
   }
@@ -144,7 +172,7 @@ export class Graph {
       );
     }
     await this.assertCurrent(scene);
-    await this.submit("g.V([pk,rootId]).property('projection','ready')", { pk: scene.videoId, rootId: root });
+    await this.submit("g.V([pk,rootId]).property(single,'projection','ready')", { pk: scene.videoId, rootId: root });
   }
 
   async match(scene: SceneRecord, plan: QueryPlan): Promise<Timecode[]> {

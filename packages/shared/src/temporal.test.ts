@@ -104,6 +104,14 @@ test("anonymous age categories remain searchable without accepting visual identi
   assert.match(compileMatch(generic, scene).script, /\.has\('entityType','person'\)/);
   assert.equal(validateVisualAnalysis({ caption: "Child", entities: [child], relations: [], tags: [] }, bounds).entities[0].name, "child");
 });
+test("known ontology types are identical in model queries and observations", () => {
+  const query = queryPlanSchema.parse({ entities: [{ variable: "g", name: "cat", type: "object" }], relations: [], explanation: "Pet" });
+  assert.equal(query.entities[0].type, "animal");
+  const observation = validateVisualAnalysis({
+    caption: "Gato", entities: [{ id: "c1", type: "object", name: "cat", confidence: 0.9 }], relations: [], tags: []
+  }, bounds);
+  assert.equal(observation.entities[0].type, "animal");
+});
 test("vision names are discarded, invalid relations and model identities fail closed", () => {
   const valid = { caption: "Visual-only", entities: [{ ...entities[0], name: "A visual celebrity guess" }, entities[1]], relations: [relation("r1", "p1", "sitting_on", "s1")], tags: [] };
   assert.equal(validateVisualAnalysis(valid, bounds).entities[0].name, "person");

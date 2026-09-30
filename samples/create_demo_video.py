@@ -52,10 +52,10 @@ def person(d, x, y, scale=1, shirt=ROSE, seated=True, child=False):
     d.line((x - 38 * scale, y + 60 * scale, x - 69 * scale, y + 145 * scale), fill=SKIN, width=int(24 * scale))
     d.line((x + 38 * scale, y + 60 * scale, x + 84 * scale, y + 109 * scale), fill=SKIN, width=int(24 * scale))
     if seated:
-        d.line((x - 35 * scale, y + 151 * scale, x - 38 * scale, y + 205 * scale, x - 66 * scale, y + 260 * scale), fill="#475464", width=int(33 * scale))
-        d.line((x + 30 * scale, y + 151 * scale, x + 58 * scale, y + 205 * scale, x + 57 * scale, y + 260 * scale), fill="#475464", width=int(33 * scale))
-        d.ellipse(box(-94, 246, -42, 269), fill=INK)
-        d.ellipse(box(40, 246, 98, 269), fill=INK)
+        d.line((x - 30 * scale, y + 161 * scale, x - 69 * scale, y + 188 * scale, x - 69 * scale, y + 292 * scale), fill="#475464", width=int(35 * scale))
+        d.line((x + 25 * scale, y + 161 * scale, x + 77 * scale, y + 188 * scale, x + 77 * scale, y + 292 * scale), fill="#475464", width=int(35 * scale))
+        d.ellipse(box(-108, 280, -54, 303), fill=INK)
+        d.ellipse(box(63, 280, 117, 303), fill=INK)
 
 
 def cat(d, x, y):
@@ -149,6 +149,7 @@ def main():
     for index, image in enumerate(scenes):
         image_path = args.output / f"scene-{index + 1}.png"
         image.save(image_path)
+        image.save(args.output / f"scene-{index + 1}.jpg", quality=90)
         subprocess.run([
             ffmpeg, "-hide_banner", "-loglevel", "error", "-y", "-loop", "1",
             "-i", str(image_path), "-t", "12", "-r", "24", "-c:v", "libx264",
