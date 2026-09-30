@@ -824,6 +824,35 @@ resource workerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
             cpu: json('1.0')
             memory: '2Gi'
           }
+          probes: [
+            {
+              type: 'Startup'
+              httpGet: {
+                path: '/healthz'
+                port: 8080
+              }
+              periodSeconds: 10
+              failureThreshold: 30
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/healthz'
+                port: 8080
+              }
+              periodSeconds: 15
+              failureThreshold: 3
+            }
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/healthz'
+                port: 8080
+              }
+              periodSeconds: 30
+              failureThreshold: 6
+            }
+          ]
         }
       ]
       scale: {

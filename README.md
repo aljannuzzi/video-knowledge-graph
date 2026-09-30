@@ -4,6 +4,10 @@ Aplicação de referência para indexar vídeos, pesquisar situações em lingua
 
 A identidade dos atores nesta demo é **editorial**: uma pessoa confirma o nome associado a uma ocorrência visual. O modelo de visão não identifica pessoas pelo rosto. O pipeline opcional com Azure AI Video Indexer está descrito adiante, mas não é executado pela aplicação.
 
+![Workspace editorial com busca e evidências de relações](docs/images/workspace.png)
+
+*Interface usando vídeo ilustrado original, sem pessoas reais. O resultado exibe a janela estimada, as relações verificadas e os controles de extração.*
+
 ![Arquitetura e responsabilidades](docs/images/architecture.svg)
 
 ## O problema de recuperação
@@ -106,6 +110,8 @@ O perfil Azure desta demo utiliza **GPT-5.4** para análise multimodal/interpret
 
 **Amostragem não é análise de todos os frames.** Janelas curtas limitam custo, latência e tamanho de contexto, mas podem perder ações breves. “Conversando” inferido visualmente é uma observação sobre a imagem, não uma transcrição nem prova de diálogo audível. O pipeline não inventa falas.
 
+O perfil da demo usa **janelas fixas de até 12 segundos, até seis frames a cada dois segundos, vídeos de até 180 segundos e arquivos de até 200 MB**. Não inclui detector automático de cortes nem tracking contínuo. Para indexação editorial de longa duração, substitua o segmentador por detecção de shots, preserve o mapeamento ao timebase original e refine os limites dos matches com amostragem densa antes da revisão humana.
+
 ### Busca e exportação
 
 ```text
@@ -164,6 +170,8 @@ Não há capacidade pública documentada que o torne substituto de reconheciment
 | Processamento assíncrono idempotente | Busca não espera FFmpeg; jobs têm progresso, erro e resultado persistidos. |
 | Evidência e proveniência | Cada observação preserva frames, modelo, versão e origem. |
 | Portas de integração explícitas | Serviços de IA e banco ficam no backend; nenhum segredo chega ao frontend. |
+
+O adaptador Gremlin trata throttling por operação, inclusive quando o serviço encapsula um 429 em uma resposta Gremlin 500. IDs determinísticos e propriedades de cardinalidade simples tornam a repetição idempotente, sem reiniciar toda a projeção. O worker mantém leases e heartbeats; `/healthz` reflete a saúde das rotinas de consumo e recuperação.
 
 ## Estrutura
 
