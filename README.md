@@ -147,6 +147,25 @@ O perfil Azure desta demo utiliza **GPT-5.4** para análise multimodal/interpret
 
 O perfil da demo usa **janelas fixas de até 12 segundos, até seis frames a cada dois segundos, vídeos de até 180 segundos e arquivos de até 200 MB**. Não inclui detector automático de cortes nem tracking contínuo. Para indexação editorial de longa duração, substitua o segmentador por detecção de shots, preserve o mapeamento ao timebase original e refine os limites dos matches com amostragem densa antes da revisão humana.
 
+### Opção de pipeline: Azure AI Video Indexer
+
+O [Azure AI Video Indexer](https://learn.microsoft.com/en-us/azure/azure-video-indexer/video-indexer-overview) **pode ser considerado para a etapa de extração de metadados e segmentação do vídeo**, substituindo ou complementando parte do processamento customizado. Conforme a modalidade, o preset e a disponibilidade regional, ele oferece detecção de cenas e cortes, keyframes, objetos, OCR e transcrição de áudio, com ocorrências e timestamps.
+
+Uma integração possível preservaria as demais responsabilidades do pattern:
+
+```text
+Vídeo original → Video Indexer → insights e intervalos
+              → normalização + enriquecimento de relações pelo modelo multimodal
+              → Cosmos NoSQL + embeddings → projeção Gremlin
+              → busca → revisão editorial → FFmpeg → clips e manifesto
+```
+
+Um adaptador converteria os insights para o modelo canônico de cenas, entidades e relações, preservando IDs, origem, confiança e a correspondência dos timestamps com o vídeo original. O modelo multimodal poderia complementar relações específicas que não estejam explícitas nos insights. O grafo continuaria responsável pela consulta das relações e pela verificação de compatibilidade temporal.
+
+**Extrair metadados não é o mesmo que extrair clips:** nessa opção, Video Indexer ajudaria a analisar e localizar o conteúdo; o worker FFmpeg continuaria cortando os intervalos aprovados e produzindo os arquivos para edição. A adoção exigiria avaliar qualidade, cobertura, custo, latência e precisão temporal com exemplos representativos do acervo, sem presumir que a segmentação corresponda automaticamente aos limites de cada ação.
+
+**Essa integração não está implementada nem é uma dependência da demo atual.** Pode ser adotada independentemente do reconhecimento de atores. As funcionalidades de identificação facial exigem aprovação específica, conforme descrito na seção de identidade abaixo.
+
 ### Busca e exportação
 
 ```text
@@ -179,7 +198,7 @@ No inspetor de uma cena, selecione a ocorrência do tipo pessoa e associe o nome
 
 Isso permite consultar nomes confirmados sem atribuir ao LLM uma capacidade biométrica. Mantenha ator e personagem como conceitos separados: uma pessoa pode interpretar diferentes personagens, e o mesmo personagem pode ter diferentes intérpretes.
 
-### Extensão possível: Azure AI Video Indexer
+### Extensão de identidade: Azure AI Video Indexer
 
 O [Azure AI Video Indexer](https://learn.microsoft.com/en-us/azure/azure-video-indexer/face-detection-insight) documenta reconhecimento de celebridades e [Person Models personalizados](https://learn.microsoft.com/en-us/azure/azure-video-indexer/customize-person-model-how-to). O pipeline de extensão seria:
 
