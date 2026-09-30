@@ -209,6 +209,39 @@ export const visualAnalysisJsonSchema = {
   }
 };
 
+export function visualSchemaForWindow(frameSeconds: number[], bounds: Timecode) {
+  const starts = [...new Set(frameSeconds)].sort((a, b) => a - b);
+  timecodeSchema.parse(bounds);
+  if (!starts.length || starts.some(t => !Number.isFinite(t) || t < bounds.startSeconds || t >= bounds.endSeconds)) {
+    throw new ValidationError("Invalid frame timestamps for visual schema");
+  }
+  const relationSchema = visualAnalysisJsonSchema.properties.relations;
+  return {
+    ...visualAnalysisJsonSchema,
+    properties: {
+      ...visualAnalysisJsonSchema.properties,
+      relations: {
+        ...relationSchema,
+        items: {
+          ...relationSchema.items,
+          properties: {
+            ...relationSchema.items.properties,
+            timecode: {
+              anyOf: starts.map(start => ({
+                type: "object", additionalProperties: false, required: ["startSeconds", "endSeconds"],
+                properties: {
+                  startSeconds: { type: "number", enum: [start] },
+                  endSeconds: { type: "number", enum: [...starts.filter(end => end > start), bounds.endSeconds] }
+                }
+              }))
+            }
+          }
+        }
+      }
+    }
+  };
+}
+
 export type VisualAnalysis = z.infer<typeof visualAnalysisSchema>;
 export function validateVisualAnalysis(value: unknown, bounds: Timecode): VisualAnalysis {
   const parsedBounds = timecodeSchema.parse(bounds);

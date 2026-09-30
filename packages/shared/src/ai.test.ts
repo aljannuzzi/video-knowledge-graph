@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { AI } from "./ai.js";
 import { loadConfig } from "./config.js";
 import { isPermanentError } from "./types.js";
-import { queryPlanJsonSchema, visualAnalysisJsonSchema } from "./schemas.js";
+import { queryPlanJsonSchema, visualSchemaForWindow } from "./schemas.js";
 
 const environment = {
   ENVIRONMENT: "local", LOCAL_AUTH_DISABLED: "true", AZURE_STORAGE_ACCOUNT: "teststore",
@@ -84,7 +84,8 @@ test("vision extraction requests strict entity types and validates returned meta
   const ai = new AI(config, credential, fetcher((_url, body) => {
     assert.equal(body.response_format.type, "json_schema");
     assert.equal(body.response_format.json_schema.strict, true);
-    assert.deepEqual(body.response_format.json_schema.schema, visualAnalysisJsonSchema);
+    assert.deepEqual(body.response_format.json_schema.schema,
+      visualSchemaForWindow([12], { startSeconds: 12, endSeconds: 24 }));
     return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({
       caption: "Anonymous person", entities: [{ id: "p", type: "person", name: "adult", confidence: 0.9 }],
       relations: [], tags: []
@@ -93,4 +94,24 @@ test("vision extraction requests strict entity types and validates returned meta
   const result = await ai.analyzeFrames([{ seconds: 12, dataUrl: "data:image/jpeg;base64,AA==" }],
     { startSeconds: 12, endSeconds: 24 });
   assert.equal(result.entities[0].type, "person");
+});
+test("window schema cannot generate zero-length, reversed or out-of-source intervals", () => {
+  const bound = { startSeconds: 36, endSeconds: 39.217 };
+  const options = visualSchemaForWindow([36, 38], bound).properties.relations.items.properties.timecode.anyOf;
+  for (const option of options) {
+    const start = option.properties.startSeconds.enum[0];
+    assert(option.properties.endSeconds.enum.every(end => end > start && end <= bound.endSeconds));
+  }
+  assert.equal(options[1].properties.endSeconds.enum[0], 39.217);
+});
+test("visual metadata validation gets one bounded corrective generation, never a success fallback", async () => {
+  let calls = 0;
+  const invalid = { caption: "Visible person", entities: [{ id: "p", type: "person", name: "person", confidence: 2 }], relations: [], tags: [] };
+  const ai = new AI(config, credential, fetcher(() => {
+    calls++;
+    return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify(invalid) } }] });
+  }));
+  await assert.rejects(ai.analyzeFrames([{ seconds: 0, dataUrl: "data:image/jpeg;base64,AA==" }],
+    { startSeconds: 0, endSeconds: 2 }), /schema/);
+  assert.equal(calls, 2);
 });

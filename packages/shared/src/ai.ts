@@ -5,7 +5,7 @@ import { ValidationError } from "./types.js";
 import { ontologyPrompt, queryOntologyPrompt } from "./ontology.js";
 import {
   actionEvidenceJsonSchema, actionEvidenceSchema, queryPlanJsonSchema, queryPlanSchema,
-  validateVisualAnalysis, visualAnalysisJsonSchema, type VisualAnalysis
+  validateVisualAnalysis, visualSchemaForWindow, type VisualAnalysis
 } from "./schemas.js";
 
 type Message = { role: "system" | "user"; content: string | Array<Record<string, unknown>> };
@@ -179,7 +179,7 @@ There is NO audio or transcript. Do not invent speech, names, precise shot bound
       content.push({ type: "text", text: `Frame at absolute source second ${frame.seconds}` },
         { type: "image_url", image_url: { url: frame.dataUrl, detail: "high" } });
     }
-    const raw = await this.json([
+    const messages: Message[] = [
       { role: "system", content: `You extract grounded visual metadata from timestamped video frames.
 ${ontologyPrompt}
 Write natural caption, evidence, and tags in Brazilian Portuguese (pessoa, gato, sofá, janela);
@@ -195,6 +195,8 @@ Use unique occurrence IDs for different people/objects. Keep the same entity ID 
 frames ONLY with visible continuity; never infer identity across scenes. Both endpoints of each
 relation must be declared entities. Every interval must be positive and inside the supplied bounds.
 Temporal boundaries are estimates from 2-second visual sampling, not continuous verification.
+Use the positive-duration timecode alternatives in the schema. Start and end must differ.
+If an observation cannot support a temporal interval, omit that relation rather than creating a point event.
 Do not extend a relation across frames where it is contradicted or unsupported.
 Use only confidently observed relations; empty entities/relations is valid for unclear frames.
 Extract the most specific supported relation: a visibly seated person on a sofa is sitting_on,
@@ -206,8 +208,23 @@ or other real people. Describe people only as anonymous people and visible actio
 Use person, child, or adult as anonymous broad categories when visually clear, not personal names.
 Evidence must say which frame timestamps support each relation. Do not claim you heard audio.` },
       { role: "user", content }
-    ], 10_000, visualAnalysisJsonSchema);
-    return validateVisualAnalysis(raw, bounds);
+    ];
+    const schema = visualSchemaForWindow(frames.map(frame => frame.seconds), bounds);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      // Model refusals/truncation propagate; only parsed output validation can request a correction.
+      const raw = await this.json(messages, 10_000, schema);
+      try {
+        return validateVisualAnalysis(raw, bounds);
+      } catch (error) {
+        if (!(error instanceof ValidationError) || attempt === 1) throw error;
+        console.warn("[vision] parsed metadata failed validation; requesting one corrected response");
+        messages.push({
+          role: "user",
+          content: "The previous parsed metadata failed validation. Regenerate from the same frames with unique entity/relation IDs, declared distinct endpoints, at most24 entities and40 relations, confidence0..1 and strictly positive intervals inside the supplied source bounds. Do not invent or weaken observations; omit unsupported relations."
+        });
+      }
+    }
+    throw new ValidationError("Visual metadata correction budget exhausted");
   }
 }
 

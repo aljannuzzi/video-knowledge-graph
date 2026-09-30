@@ -143,6 +143,8 @@ O particionamento por vídeo favorece percursos locais. Consultas globais por at
 
 A extração visual usa saída estruturada com JSON Schema. `person` é o tipo da entidade; `adult` e `child` são categorias de nome, não tipos adicionais. O adaptador também normaliza essas duas variantes legadas antes da validação, sem aceitar tipos arbitrários, inferir identidades ou relaxar os limites temporais.
 
+O esquema de cada janela permite apenas intervalos positivos entre os timestamps amostrados e o limite real da janela, inclusive quando o fim do arquivo é fracionário. A validação de IDs, referências, confiança e limites continua no backend. Uma resposta JSON que viole essas regras pode ser regenerada uma única vez; falhas persistentes permanecem explícitas, sem completar o job com metadados inválidos.
+
 O perfil Azure desta demo utiliza **GPT-5.4** para análise multimodal/interpretação e **text-embedding-3-large**, reduzido a **1536 dimensões**, para recuperação. Os nomes dos deployments são configuráveis; não há chamadas de IA no browser. Trocar o modelo ou a dimensão exige avaliar compatibilidade e reindexar quando necessário.
 
 **Amostragem não é análise de todos os frames.** Janelas curtas limitam custo, latência e tamanho de contexto, mas podem perder ações breves. “Conversando” inferido visualmente é uma observação sobre a imagem, não uma transcrição nem prova de diálogo audível. O pipeline não inventa falas.
