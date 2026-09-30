@@ -118,6 +118,8 @@ Texto do usuário e saídas do modelo não são executados como código SQL ou G
 
 Conjunções de várias entidades exigem evidência relacional temporal para cada variável. A presença de dois nomes em uma mesma janela, sem uma relação que sustente o intervalo, não é tratada como coocorrência comprovada. A ontologia inclui `sitting_on`, `sitting_at`, `decorated_with` e `talking_to`; este último representa conversa aparente visualmente, não confirmação por áudio.
 
+Uma busca por uma única entidade retorna a janela que contém sua observação; não determina o intervalo exato de presença daquela entidade. Esse limite fica explícito para não confundir janelas de análise com tracking contínuo. Antes de exigir precisão frame a frame, adicione tracks e intervalos por ocorrência, refine os limites com amostragem densa e avalie contra anotações humanas.
+
 O resultado de busca semântica é um conjunto limitado de candidatos, **não uma prova de cobertura completa do acervo**. “Extrair selecionados” opera sobre os resultados retornados. Para requisitos de exaustividade, use consultas estruturadas completas, paginação e avaliação de recall.
 
 A extração reencoda os intervalos aprovados com FFmpeg e produz um pacote com clips MP4 e manifesto de edição. O manifesto preserva o vínculo ao original e os tempos solicitados. Reencodar evita depender de keyframes para o início do corte.
