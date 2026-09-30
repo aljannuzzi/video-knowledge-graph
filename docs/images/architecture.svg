@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">CENA: arquitetura de busca de cenas com grafo temporal</title>
+  <desc id="desc">API e worker no Azure Container Apps. Cosmos NoSQL armazena estado canonico e vetores. Cosmos Gremlin e uma projecao versionada das relacoes. Blob guarda videos e clips. Azure OpenAI analisa frames e interpreta consultas. A identidade de atores e editorial.</desc>
+  <defs>
+    <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#b11f4b" stroke-width="1.5"/></marker>
+    <style>
+      text{font-family:Segoe UI,Arial,sans-serif;fill:#242424}.title{font-size:32px;font-weight:700}.sub{font-size:16px;fill:#5c5c5c}.head{font-size:20px;font-weight:650}.body{font-size:16px}.tag{font-size:13px;fill:#b11f4b;font-weight:650;letter-spacing:1px}.small{font-size:14px;fill:#5c5c5c}.box{fill:#fff;stroke:#d7d4cf;stroke-width:1.5;rx:14}.line{stroke:#b11f4b;stroke-width:2;fill:none;marker-end:url(#a)}
+    </style>
+  </defs>
+  <rect width="1440" height="900" fill="#f7f4ef"/>
+  <text x="48" y="53" class="tag">CENA / REFERENCE ARCHITECTURE</text>
+  <text x="48" y="101" class="title">Busca multimodal + grafo temporal + clips editaveis</text>
+  <text x="48" y="136" class="sub">Uma fonte de verdade. Uma projecao de grafo reconstruivel. Identidade editorial, nao inferida pelo LLM.</text>
+  <rect x="48" y="182" width="1344" height="278" rx="20" fill="none" stroke="#a8a29a" stroke-dasharray="6 5"/>
+  <text x="72" y="209" class="tag">AZURE CONTAINER APPS / DOIS SERVICOS STATELESS</text>
+  <rect x="76" y="234" width="560" height="198" class="box"/>
+  <text x="100" y="270" class="head">API + frontend React</text>
+  <text x="100" y="305" class="body">Busca em linguagem natural / preview com in e out</text>
+  <text x="100" y="333" class="body">Upload / anotacao editorial / exportacao em lote</text>
+  <text x="100" y="361" class="body">Query plan validado / filtros / evidencias do grafo</text>
+  <text x="100" y="399" class="small">Mesma origem HTTPS, sessao autenticada, sem chaves no browser</text>
+  <rect x="798" y="234" width="566" height="198" class="box"/>
+  <text x="822" y="270" class="head">Worker de midia e projecao</text>
+  <text x="822" y="305" class="body">FFprobe / frames temporizados / analise multimodal</text>
+  <text x="822" y="333" class="body">Validacao de entidades, relacoes e intervalos</text>
+  <text x="822" y="361" class="body">Embeddings / projecao Gremlin / FFmpeg / ZIP</text>
+  <text x="822" y="399" class="small">Jobs duraveis, progresso, retry e IDs deterministas</text>
+  <path d="M636 293H798" class="line"/>
+  <text x="661" y="276" class="small">Fila Storage</text>
+  <text x="655" y="321" class="small">jobs assincronos</text>
+  <rect x="48" y="530" width="304" height="207" class="box"/>
+  <text x="72" y="563" class="tag">FONTE DE VERDADE</text>
+  <text x="72" y="601" class="head">Cosmos DB NoSQL</text>
+  <text x="72" y="635" class="body">Cenas + embeddings 1536D</text>
+  <text x="72" y="663" class="body">Acervo + estado de jobs</text>
+  <text x="72" y="703" class="small">Busca vetorial e metadados canonicos</text>
+  <rect x="388" y="530" width="304" height="207" class="box"/>
+  <text x="412" y="563" class="tag">PROJECAO CONSULTAVEL</text>
+  <text x="412" y="601" class="head">Cosmos DB Gremlin</text>
+  <text x="412" y="635" class="body">Ocorrencias / relacoes / ator</text>
+  <text x="412" y="663" class="body">Versao + tempo + evidencias</text>
+  <text x="412" y="703" class="small">Grafo nativo, nao apenas arrays JSON</text>
+  <rect x="728" y="530" width="304" height="207" class="box"/>
+  <text x="752" y="563" class="tag">ARTEFATOS PRIVADOS</text>
+  <text x="752" y="601" class="head">Azure Blob Storage</text>
+  <text x="752" y="635" class="body">Videos / frames / thumbnails</text>
+  <text x="752" y="663" class="body">Clips MP4 + manifesto ZIP</text>
+  <text x="752" y="703" class="small">Leitura autorizada pela API</text>
+  <rect x="1068" y="530" width="324" height="207" class="box"/>
+  <text x="1092" y="563" class="tag">INFERENCIA MULTIMODAL</text>
+  <text x="1092" y="601" class="head">Azure OpenAI</text>
+  <text x="1092" y="635" class="body">GPT-5.4: visao e query plan</text>
+  <text x="1092" y="663" class="body">text-embedding-3-large</text>
+  <text x="1092" y="703" class="small">Deployments substituiveis por config</text>
+  <path d="M199 432V530M539 432V530M879 432V530M1229 432V530" class="line"/>
+  <rect x="48" y="778" width="1344" height="74" rx="14" fill="#efebe5" stroke="#d7d4cf"/>
+  <text x="72" y="809" class="body">VNet + Private Endpoints / DNS privado / Managed Identity + RBAC / Key Vault / ACR / Log Analytics</text>
+  <text x="72" y="835" class="small">ADF e AKS fora do caminho inicial. Video Indexer e Web IQ sao extensoes opcionais, nao dependencias da demo.</text>
+</svg>

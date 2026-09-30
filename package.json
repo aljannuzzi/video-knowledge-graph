@@ -1,0 +1,27 @@
+{
+  "name": "video-knowledge-graph",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference implementation for semantic scene search and AI-generated video metadata on Azure.",
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/frontend",
+    "apps/worker"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @vkg/shared && node --env-file=.env node_modules/concurrently/dist/bin/concurrently.js \"npm run dev -w @vkg/api\" \"npm run dev -w @vkg/frontend\"",
+    "build": "npm run build -w @vkg/shared && npm run build -w @vkg/api && npm run build -w @vkg/worker && npm run build -w @vkg/frontend",
+    "typecheck": "npm run build -w @vkg/shared && npm run typecheck -w @vkg/api && npm run typecheck -w @vkg/worker && npm run typecheck -w @vkg/frontend",
+    "start:api": "node --env-file=.env apps/api/dist/server.js",
+    "start:worker": "node --env-file=.env apps/worker/dist/metadataGenerator.js",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

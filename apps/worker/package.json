@@ -1,0 +1,21 @@
+{
+  "name": "@vkg/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/worker.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/worker.js",
+    "test": "node --test dist/*.test.js"
+  },
+  "dependencies": {
+    "@vkg/shared": "file:../../packages/shared",
+    "archiver": "^7.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "@types/archiver": "^6.0.3"
+  }
+}

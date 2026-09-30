@@ -1,0 +1,29 @@
+{
+  "name": "@vkg/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./server": { "types": "./dist/server.d.ts", "import": "./dist/server.js" }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test dist/*.test.js"
+  },
+  "dependencies": {
+    "@azure/core-auth": "^1.9.0",
+    "@azure/cosmos": "^4.5.0",
+    "@azure/identity": "^4.9.0",
+    "@azure/storage-blob": "^12.27.0",
+    "@azure/storage-queue": "^12.26.0",
+    "gremlin": "3.4.13",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4"
+  }
+}

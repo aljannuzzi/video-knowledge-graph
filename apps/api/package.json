@@ -1,0 +1,26 @@
+{
+  "name": "@vkg/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/server.js",
+    "test": "node --test dist/*.test.js"
+  },
+  "dependencies": {
+    "@vkg/shared": "file:../../packages/shared",
+    "express": "^4.21.1",
+    "multer": "^2.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1"
+  }
+}

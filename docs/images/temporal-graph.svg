@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="780" viewBox="0 0 1440 780" role="img" aria-labelledby="title desc">
+  <title id="title">Grafo temporal: pessoa e gato sentados no mesmo sofa</title>
+  <desc id="desc">Pessoa um sentada no sofa sete entre 34 e 45 segundos, gato dois sentado no mesmo sofa entre 38 e 50 segundos. A intersecao valida e 38 a 45 segundos. Um sofa diferente ou intervalos sem sobreposicao nao satisfazem a consulta.</desc>
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L7 4L0 8" fill="none" stroke="#b11f4b" stroke-width="1.5"/></marker>
+    <style>text{font-family:Segoe UI,Arial,sans-serif;fill:#242424}.h{font-size:22px;font-weight:650}.s{font-size:17px;fill:#5c5c5c}.tag{font-size:13px;fill:#b11f4b;font-weight:700;letter-spacing:1px}.b{fill:#fff;stroke:#d7d4cf;stroke-width:1.5;rx:14}.a{stroke:#b11f4b;stroke-width:2;fill:none;marker-end:url(#a)}.mono{font-family:Consolas,monospace;font-size:19px}</style>
+  </defs>
+  <rect width="1440" height="780" fill="#f7f4ef"/>
+  <text x="48" y="53" class="tag">CENA / TEMPORAL PROPERTY GRAPH</text>
+  <text x="48" y="102" font-size="32" font-weight="700">Coocorrencia nao comprova uma relacao</text>
+  <text x="48" y="140" class="s">A resposta exige o mesmo objeto, a mesma cena, a versao ativa e um intervalo comum.</text>
+  <rect x="48" y="205" width="290" height="112" class="b"/><text x="76" y="250" class="h">Pessoa_1</text><text x="76" y="286" class="s">Instancia na cena, nao categoria</text>
+  <rect x="48" y="375" width="290" height="112" class="b"/><text x="76" y="420" class="h">Gato_2</text><text x="76" y="456" class="s">Instancia na mesma cena</text>
+  <rect x="742" y="289" width="290" height="112" class="b"/><text x="770" y="334" class="h">Sofa_7</text><text x="770" y="370" class="s">A mesma instancia de objeto</text>
+  <path d="M338 259H610L742 330M338 431H610L742 362" class="a"/>
+  <text x="382" y="236" class="mono">SENTADO_EM [34s, 45s)</text><text x="382" y="469" class="mono">SENTADO_EM [38s, 50s)</text>
+  <rect x="1090" y="205" width="302" height="282" class="b"/>
+  <text x="1118" y="248" class="tag">PROVA DO MATCH</text>
+  <text x="1118" y="292" class="h">Intersecao temporal</text>
+  <text x="1118" y="337" class="mono">inicio = max(34, 38)</text><text x="1118" y="375" class="mono">fim = min(45, 50)</text>
+  <text x="1118" y="437" font-size="32" fill="#b11f4b" font-weight="700">38s → 45s</text>
+  <rect x="48" y="553" width="1344" height="162" class="b"/>
+  <text x="76" y="594" class="h">O que precisa ser preservado em cada observacao</text>
+  <text x="76" y="634" class="s">videoId / sceneId / entityInstanceId / subject / predicate / object / inicio / fim / evidencia / confianca / metadataVersion</text>
+  <text x="76" y="677" class="s">Identidade de ator e uma anotacao separada, com origem editorial. Limites inferidos por frames sao estimativas revisaveis.</text>
+</svg>

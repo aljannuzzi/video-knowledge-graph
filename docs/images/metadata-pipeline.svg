@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="880" viewBox="0 0 1440 880" role="img" aria-labelledby="title desc">
+  <title id="title">Pipeline multimodal e identificacao editorial</title>
+  <desc id="desc">Video e dividido em janelas e frames para analise de objetos e relacoes. Editor associa identidade a uma pessoa na cena. Metadados sao persistidos e projetados no grafo. Reconhecimento automatico via Video Indexer e uma extensao sujeita a aprovacao.</desc>
+  <defs>
+    <marker id="a" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L7 4L0 8" fill="none" stroke="#b11f4b" stroke-width="1.5"/></marker>
+    <style>text{font-family:Segoe UI,Arial,sans-serif;fill:#242424}.h{font-size:21px;font-weight:650}.s{font-size:16px;fill:#5c5c5c}.tag{font-size:13px;fill:#b11f4b;font-weight:700;letter-spacing:1px}.b{fill:#fff;stroke:#d7d4cf;stroke-width:1.5;rx:14}.a{stroke:#b11f4b;stroke-width:2;fill:none;marker-end:url(#a)}</style>
+  </defs>
+  <rect width="1440" height="880" fill="#f7f4ef"/>
+  <text x="48" y="53" class="tag">CENA / PIPELINE</text>
+  <text x="48" y="102" font-size="32" font-weight="700">Observacao visual nao e identidade</text>
+  <text x="48" y="138" class="s">O modelo descreve o que acontece; o editor confirma quem aparece e revisa os limites do trecho.</text>
+  <rect x="48" y="195" width="275" height="152" class="b"/>
+  <text x="72" y="231" class="tag">01 / ENTRADA</text><text x="72" y="267" class="h">Upload autorizado</text>
+  <text x="72" y="298" class="s">Blob privado + job duravel</text><text x="72" y="324" class="s">FFprobe valida duracao e fps</text>
+  <rect x="405" y="195" width="275" height="152" class="b"/>
+  <text x="429" y="231" class="tag">02 / EVIDENCIAS</text><text x="429" y="267" class="h">Amostragem temporal</text>
+  <text x="429" y="298" class="s">Janelas curtas + frames</text><text x="429" y="324" class="s">Tempo associado a cada imagem</text>
+  <rect x="762" y="195" width="275" height="152" class="b"/>
+  <text x="786" y="231" class="tag">03 / VISAO</text><text x="786" y="267" class="h">GPT-5.4 multimodal</text>
+  <text x="786" y="298" class="s">Objetos, acoes e relacoes</text><text x="786" y="324" class="s">JSON validado, sem nomes faciais</text>
+  <path d="M323 270H405M680 270H762" class="a"/>
+  <rect x="1110" y="195" width="282" height="350" class="b"/>
+  <text x="1134" y="231" class="tag">04 / PERSISTENCIA</text><text x="1134" y="270" class="h">Cosmos NoSQL</text>
+  <text x="1134" y="306" class="s">Metadados + vetores</text><text x="1134" y="332" class="s">Proveniencia + versao</text>
+  <path d="M1246 355V417" class="a"/>
+  <text x="1134" y="452" class="h">Cosmos Gremlin</text><text x="1134" y="488" class="s">Projecao reconstruivel</text>
+  <text x="1134" y="514" class="s">Relacoes no tempo e no espaco</text>
+  <path d="M1037 270H1110" class="a"/>
+  <rect x="48" y="403" width="989" height="142" class="b"/>
+  <text x="72" y="439" class="tag">IDENTIFICACAO IMPLEMENTADA NA DEMO</text>
+  <text x="72" y="478" class="h">Editor seleciona Pessoa_1 na cena e associa o ator pelo nome</text>
+  <text x="72" y="510" class="s">Anotacao com origem editorial; atualiza embedding e grafo. Nao propaga identidade automaticamente para outros videos.</text>
+  <path d="M1037 474H1110" class="a"/>
+  <rect x="48" y="620" width="1344" height="186" rx="16" fill="none" stroke="#a8a29a" stroke-dasharray="6 5"/>
+  <text x="72" y="657" class="tag">EXTENSAO DOCUMENTADA / NAO ATIVADA</text>
+  <text x="72" y="696" class="h">Azure AI Video Indexer: reconhecimento de celebridades ou Person Model autorizado</text>
+  <text x="72" y="732" class="s">Cadastro autorizado → indexacao → ocorrencias com timestamps → associacao ao track visual → revisao editorial → grafo</text>
+  <text x="72" y="770" class="s">Exige aprovacao de acesso e governanca biometrica. Web IQ pode enriquecer a entidade com fontes publicas; nao identifica rostos.</text>
+</svg>

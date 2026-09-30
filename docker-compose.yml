@@ -1,0 +1,24 @@
+# Uses real Azure data services. Supply service-principal credentials through the
+# ignored .env for containers, or run npm locally with Azure CLI authentication.
+services:
+  api:
+    image: video-knowledge-graph:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      ENVIRONMENT: local
+      PORT: 8080
+      FRONTEND_DIST: /app/apps/frontend/dist
+    ports:
+      - "127.0.0.1:8080:8080"
+  worker:
+    image: video-knowledge-graph:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      ENVIRONMENT: local
+    command: ["node", "apps/worker/dist/metadataGenerator.js"]
