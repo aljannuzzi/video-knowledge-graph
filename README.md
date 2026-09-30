@@ -1,5 +1,42 @@
 # CENA — busca de cenas com knowledge graph temporal
 
+## Do acervo de vídeos ao conhecimento reutilizável
+
+Um acervo pode estar bem organizado em pastas e, ainda assim, esconder aquilo que uma equipe precisa. O título de um vídeo informa qual é a produção, mas raramente revela todos os momentos que existem dentro dela. Para montar uma campanha, um trailer ou uma nova edição, alguém ainda precisa lembrar de uma cena — ou assistir a muitas horas de material para encontrá-la.
+
+O CENA explora uma mudança na forma de consultar esse acervo: **em vez de procurar o nome de um arquivo, descrever o momento que se quer reutilizar**. “Uma pessoa e um gato sentados no sofá” deixa de ser apenas uma ideia na cabeça do editor e passa a ser uma pergunta que o sistema pode relacionar a observações dos vídeos.
+
+O propósito não é criar novas imagens nem substituir a decisão criativa. É aproximar a intenção de quem busca do material que já existe, apresentando o vídeo de origem, um intervalo candidato e as evidências que explicam a correspondência. O editor revisa o resultado e escolhe quais trechos levar para a edição.
+
+### Por que reconhecer objetos não basta
+
+Encontrar uma pessoa, um gato e um sofá no mesmo vídeo parece suficiente — até perceber que a pessoa aparece na sala e o gato só entra minutos depois. As três palavras estão corretas, mas a cena procurada não existe naquele intervalo.
+
+Por isso, este pattern organiza não só **o que aparece**, mas **como os elementos se relacionam e quando a relação acontece**. Uma pessoa está sentada em qual sofá? O gato está no mesmo móvel? Essas duas situações acontecem ao mesmo tempo?
+
+Esse mapa de elementos e relações é um **grafo de conhecimento**. Quando as relações também carregam intervalos, ele se torna **temporal**. O tempo não é um detalhe anexado ao resultado: faz parte da pergunta e das condições para que uma cena seja considerada compatível.
+
+### Da pergunta ao material de edição
+
+O funcionamento pode ser entendido em quatro movimentos:
+
+1. **Observar:** a IA analisa amostras do vídeo e propõe descrições de objetos, pessoas anônimas, ações e relações.
+2. **Conectar:** essas observações são organizadas com suas referências ao vídeo, intervalos e evidências.
+3. **Encontrar e conferir:** a busca aproxima a pergunta de cenas candidatas e verifica se as relações registradas sustentam o pedido.
+4. **Reutilizar:** o editor inspeciona os trechos, ajusta os limites e solicita os clips, acompanhados de um manifesto que preserva sua origem.
+
+Há duas formas complementares de encontrar uma cena. A busca por significado ajuda quando a pergunta usa palavras diferentes das descrições do acervo. A busca por relações distingue situações parecidas, mas não equivalentes. **Semelhança sugere um candidato; relações e evidências permitem examiná-lo.**
+
+### O que torna essa abordagem um pattern
+
+O ponto replicável não é uma tela de busca ou a escolha de um único modelo de IA. É a separação entre **percepção, conhecimento, recuperação e ação**, mantendo o vínculo entre cada resultado e sua fonte. Essa separação permite evoluir os modelos, revisar anotações e reconstruir índices sem tratar a resposta de uma IA como uma verdade sem origem.
+
+Para quem lidera negócio ou tecnologia, a proposta é tornar o conteúdo existente mais acessível ao trabalho criativo, com critérios que podem ser inspecionados. Para a engenharia, ela oferece uma base para combinar análise multimodal, relações temporais e processamento de mídia sem concentrar todas as responsabilidades em um único serviço.
+
+Esta implementação demonstra o caminho, não promete localizar automaticamente todos os momentos com precisão de edição final. A IA observa amostras e pode errar; identidades são confirmadas editorialmente, e os limites dos trechos permanecem sujeitos a revisão. Essas escolhas e seus limites estão explicitados nas seções técnicas.
+
+## Da ideia à implementação
+
 Aplicação de referência para indexar vídeos, pesquisar situações em linguagem natural e extrair os intervalos encontrados. Combina análise multimodal no Azure OpenAI, busca vetorial no Cosmos DB for NoSQL e uma projeção nativa de grafo no Cosmos DB for Apache Gremlin.
 
 A identidade dos atores nesta demo é **editorial**: uma pessoa confirma o nome associado a uma ocorrência visual. O modelo de visão não identifica pessoas pelo rosto. O pipeline opcional com Azure AI Video Indexer está descrito adiante, mas não é executado pela aplicação.
@@ -149,7 +186,7 @@ O [Azure AI Video Indexer](https://learn.microsoft.com/en-us/azure/azure-video-i
 5. Encaminhar resultados ambíguos para revisão; persistir identidade confirmada, origem, confiança e evidência.
 6. Regerar embeddings e projeção do grafo.
 
-**Esse módulo não está ativado na demo.** Identificação facial, personalização e reconhecimento de celebridades são recursos de [acesso limitado](https://learn.microsoft.com/en-us/azure/azure-video-indexer/limited-access-features), sujeitos a aprovação da Microsoft; uma subscription non-production não recebe acesso automático. A documentação também informa restrições regionais, incluindo indisponibilidade de detecção facial em Brazil South. Não há garantia de cobertura de um ator específico na base de celebridades.
+**Esse módulo não está ativado na demo.** Identificação facial, personalização e reconhecimento de celebridades são recursos de [acesso limitado](https://learn.microsoft.com/en-us/azure/azure-video-indexer/limited-access-features), sujeitos a aprovação da Microsoft; ter uma assinatura Azure não concede acesso automático. A documentação também informa restrições regionais, incluindo indisponibilidade de detecção facial em Brazil South. Não há garantia de cobertura de um ator específico na base de celebridades.
 
 Azure AI Face é uma alternativa para matching contra cadastro autorizado, mas requer construir a extração de frames, tracking e consolidação temporal ao redor da API.
 
@@ -194,7 +231,7 @@ Requisitos: Node.js 22+, npm, Azure CLI e recursos Azure configurados. A aplica�
 npm ci
 Copy-Item .env.sample .env
 # Preencha endpoints e nomes dos deployments; mantenha segredos fora do Git.
-az login --tenant "<tenant-non-production>"
+az login --tenant "<tenant-id>"
 npm run build
 npm run dev
 # Em outro terminal, na raiz do repositorio:
@@ -205,19 +242,19 @@ Abra `http://localhost:5173`, o mesmo origin definido em `PUBLIC_ORIGIN` no `.en
 
 ## Implantação rápida no Azure
 
-Requisitos: PowerShell 7, Azure CLI com Bicep, subscription non-production, permissão para criar recursos e role assignments, quota dos modelos na região e capacidade de executar builds no ACR. Docker Desktop não é necessário: a imagem é compilada no Azure.
+Requisitos: PowerShell 7, Azure CLI com Bicep, uma assinatura Azure ativa, permissão para criar recursos e role assignments, quota dos modelos na região e capacidade de executar builds no ACR. Docker Desktop não é necessário: a imagem é compilada no Azure.
 
-O script usa a subscription informada em cada comando, sem alterar a subscription padrão do CLI. Os parâmetros abaixo criam recursos dedicados, incluindo uma conta Azure OpenAI:
+O script usa a assinatura informada em cada comando, sem alterar a assinatura padrão do CLI. Os parâmetros abaixo criam recursos dedicados, incluindo uma conta Azure OpenAI:
 
 ```powershell
-az login --tenant "<tenant-non-production>"
+az login --tenant "<tenant-id>"
 npm ci
 npm run build
 $senha = Read-Host "Senha da demo (minimo 24 caracteres)" -AsSecureString
 
 .\scripts\Deploy.ps1 `
   -SubscriptionId "<subscription-id>" `
-  -ExpectedTenantId "<tenant-non-production>" `
+  -ExpectedTenantId "<tenant-id>" `
   -ResourceGroupName "rg-cena-demo" `
   -Location "eastus2" `
   -DemoPassword $senha `
@@ -227,14 +264,14 @@ $senha = Read-Host "Senha da demo (minimo 24 caracteres)" -AsSecureString
   -OpenAiChatModelVersion "2026-03-05"
 ```
 
-O script provisiona ACR/Key Vault/identidade, bancos/Storage/modelos, compila a imagem e publica API e worker. `-PrepareOnly` provisiona a infraestrutura sem construir nem publicar a aplicação. Os nomes e versões de modelo dependem da disponibilidade e quota da sua subscription.
+O script provisiona ACR/Key Vault/identidade, bancos/Storage/modelos, compila a imagem e publica API e worker. `-PrepareOnly` provisiona a infraestrutura sem construir nem publicar a aplicação. Os nomes e versões de modelo dependem da disponibilidade e quota da sua assinatura.
 
 Para reutilizar uma conta e deployments existentes, omita `-CreateOpenAiAccount` e informe:
 
 ```powershell
 .\scripts\Deploy.ps1 `
   -SubscriptionId "<subscription-id>" `
-  -ExpectedTenantId "<tenant-non-production>" `
+  -ExpectedTenantId "<tenant-id>" `
   -ResourceGroupName "rg-cena-demo" `
   -Location "eastus2" `
   -ExistingOpenAiResourceId "<resource-id-da-conta>" `
