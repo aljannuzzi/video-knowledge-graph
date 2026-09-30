@@ -55,5 +55,5 @@
   <path d="M199 432V530M539 432V530M879 432V530M1229 432V530" class="line"/>
   <rect x="48" y="778" width="1344" height="74" rx="14" fill="#efebe5" stroke="#d7d4cf"/>
   <text x="72" y="809" class="body">VNet + Private Endpoints / DNS privado / Managed Identity + RBAC / Key Vault / ACR / Log Analytics</text>
-  <text x="72" y="835" class="small">ADF e AKS fora do caminho inicial. Video Indexer e Web IQ sao extensoes opcionais, nao dependencias da demo.</text>
+  <text x="72" y="835" class="small">API e worker com implantacao independente. Video Indexer e Web IQ sao extensoes opcionais de identificacao e enriquecimento.</text>
 </svg>

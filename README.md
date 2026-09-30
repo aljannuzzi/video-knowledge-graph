@@ -73,11 +73,9 @@ Um embedding encontra candidatos semanticamente próximos. O grafo permite verif
 
 O ambiente Container Apps integra uma VNet própria. Key Vault, Blob/Queue e ambos os Cosmos DB usam Private Endpoints e DNS privado, com acesso público desabilitado. Somente a aplicação autenticada tem ingress público. ACR e a conta Azure OpenAI reutilizada conservam sua configuração de rede; o acesso de dados à IA usa Entra ID.
 
-### Por que Container Apps, não AKS?
+### Execução dos serviços
 
-O problema precisa de uma API e de processamento assíncrono de mídia, não de controle sobre um cluster Kubernetes. Container Apps mantém implantação e escala separadas, sem administrar nós, ingress controllers ou atualizações do cluster. O worker usa CPU e FFmpeg; inferência é consumida como serviço.
-
-AKS passa a fazer sentido com inferência em GPUs próprias, operadores especializados, requisitos de scheduling ou uma plataforma Kubernetes já operada pela equipe. ADF não participa do caminho inicial: adicione-o para backfill de um MAM/DAM, cópia de acervos legados e orquestração de lotes, reutilizando a mesma ingestão.
+API e worker executam em serviços separados no Azure Container Apps. A API atende à interface e às consultas; o worker consome a fila e processa mídia de forma assíncrona, com CPU e FFmpeg. A inferência é realizada no Azure OpenAI. Essa separação permite implantar e dimensionar os serviços independentemente.
 
 ## Modelo de grafo temporal
 
