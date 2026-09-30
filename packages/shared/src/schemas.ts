@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Timecode } from "./index.js";
 import { ValidationError } from "./types.js";
-import { canonicalType, predicates } from "./ontology.js";
+import { canonicalEntityName, canonicalType, predicates } from "./ontology.js";
 import { canVerifyConjunction } from "./temporal.js";
 
 export const identifierSchema = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/);
@@ -63,7 +63,9 @@ export const queryPlanSchema = z.object({
   }
 }).transform(plan => ({
   ...plan,
-  entities: plan.entities.map(entity => ({ ...entity, type: canonicalType(entity.name, entity.type) }))
+  entities: plan.entities.map(entity => ({
+    ...entity, name: canonicalEntityName(entity.name), type: canonicalType(entity.name, entity.type)
+  }))
 }));
 
 export const queryPlanJsonSchema = {
@@ -147,7 +149,10 @@ export const actionEvidenceJsonSchema = {
 export const visualAnalysisSchema = z.object({
   caption: z.string().trim().min(1).max(4000),
   entities: z.array(z.object({
-    id: identifierSchema, type: entityType, name: label, confidence
+    id: identifierSchema,
+    type: z.enum(["person", "animal", "object", "place", "action", "concept", "adult", "child"])
+      .transform(type => type === "adult" || type === "child" ? "person" as const : type),
+    name: label, confidence
   }).strict()).max(24),
   relations: z.array(z.object({
     id: identifierSchema, subject: identifierSchema, predicate: z.enum(predicates), object: identifierSchema,
@@ -166,6 +171,44 @@ export const visualAnalysisSchema = z.object({
   }
 });
 
+export const visualAnalysisJsonSchema = {
+  type: "object", additionalProperties: false,
+  required: ["caption", "entities", "relations", "tags"],
+  properties: {
+    caption: { type: "string" },
+    entities: {
+      type: "array", items: {
+        type: "object", additionalProperties: false,
+        required: ["id", "type", "name", "confidence"],
+        properties: {
+          id: { type: "string" },
+          type: { type: "string", enum: ["person", "animal", "object", "place", "action", "concept"] },
+          name: { type: "string", description: "Singular canonical English noun; adult and child are names, not types." },
+          confidence: { type: "number" }
+        }
+      }
+    },
+    relations: {
+      type: "array", items: {
+        type: "object", additionalProperties: false,
+        required: ["id", "subject", "predicate", "object", "confidence", "timecode", "evidence"],
+        properties: {
+          id: { type: "string" }, subject: { type: "string" }, object: { type: "string" },
+          predicate: { type: "string", enum: predicates },
+          confidence: { type: "number" },
+          timecode: {
+            type: "object", additionalProperties: false,
+            required: ["startSeconds", "endSeconds"],
+            properties: { startSeconds: { type: "number" }, endSeconds: { type: "number" } }
+          },
+          evidence: { type: "string" }
+        }
+      }
+    },
+    tags: { type: "array", items: { type: "string" } }
+  }
+};
+
 export type VisualAnalysis = z.infer<typeof visualAnalysisSchema>;
 export function validateVisualAnalysis(value: unknown, bounds: Timecode): VisualAnalysis {
   const parsedBounds = timecodeSchema.parse(bounds);
@@ -180,6 +223,7 @@ export function validateVisualAnalysis(value: unknown, bounds: Timecode): Visual
   // Even an instruction-following vision model is not an identity authority.
   // Discard visual names for people; actor identities enter only via editor API.
   for (const entity of result.data.entities) {
+    entity.name = canonicalEntityName(entity.name);
     entity.type = canonicalType(entity.name, entity.type) ?? entity.type;
     if (entity.type === "person") {
       const category = entity.name.toLowerCase().trim();

@@ -17,14 +17,33 @@ export function normalizeLabel(value: string): string {
   return value.normalize("NFKC").toLocaleLowerCase("en-US").trim().replace(/\s+/g, " ");
 }
 
+const entitySynonyms: readonly (readonly string[])[] = [
+  ["sofa", "couch"],
+  ["sea lion", "sea-lion", "sealion"],
+  ["pool", "swimming pool", "aquatic tank", "aquarium tank"]
+];
+export function observationEntityNames(name: string): readonly string[] {
+  const normalized = normalizeLabel(name);
+  return entitySynonyms.find(group => group.includes(normalized)) ?? [normalized];
+}
+export function canonicalEntityName(name: string): string {
+  return observationEntityNames(name)[0];
+}
+export function observationEntityTypes(name: string, requested: SceneEntity["type"]): readonly SceneEntity["type"][] {
+  // A water enclosure can be modeled as a physical object or a place.
+  return canonicalEntityName(name) === "pool" && (requested === "object" || requested === "place")
+    ? ["object", "place"] : [requested];
+}
+
 const knownTypes: Record<string, SceneEntity["type"]> = {
   person: "person", adult: "person", child: "person",
   cat: "animal", dog: "animal", bird: "animal", horse: "animal",
   sofa: "object", chair: "object", table: "object", candle: "object", plate: "object",
-  window: "object", rug: "object", "christmas decoration": "object", "christmas tree": "object"
+  window: "object", rug: "object", "christmas decoration": "object", "christmas tree": "object",
+  pool: "object", "sea lion": "animal", seal: "animal", dolphin: "animal"
 };
 export function canonicalType(name: string, proposed?: SceneEntity["type"]): SceneEntity["type"] | undefined {
-  const key = normalizeLabel(name);
+  const key = canonicalEntityName(name);
   return Object.hasOwn(knownTypes, key) ? knownTypes[key] : proposed;
 }
 
@@ -33,6 +52,10 @@ any requested noun is allowed, even if absent from the catalog. Use singular Eng
 Examples are NOT a list of allowed names. gato -> cat, cachorro -> dog, pessoa -> person, crianca -> child,
 sofa/sofá/couch -> sofa. Entity.type is a separate category: person, animal, object, place, action, concept.
 Cat/dog are animal; sofa/table/chair are object; person/adult/child are person.
+For water enclosures where animals swim, tanque/piscina/aquatic tank/swimming pool -> pool, type object.
+Generic "tank" in a nonaquatic context remains tank; never confuse an armored tank or a fuel tank with a pool.
+leao-marinho/leão-marinho -> sea lion, NOT seal or dolphin. These are different animals, not synonyms.
+Keep species-specific requested names; never broaden sea lion to a generic animal or another species.
 Predicates alone use the CLOSED list: ${predicates.join(", ")}.
 Use exactly the relation requested; never assume an unstated posture or require an explicit verb.
 Prepositions ARE relationships: "X no sofa", "X sobre o sofa", "X on the couch" -> X on sofa.
@@ -61,6 +84,8 @@ interacting_with/holding/using alone for combing. The semantic verifier must pro
 Do not add brush/comb/person as requested entities for a passive dog query: supporting tools/people may be
 cited from observations, but the question did not impose their appearance as independent constraints.
 Use semanticConstraints:[] when requested relations are directly expressible (walking_with, sitting_on, etc.).
+"leão-marinho nadando em tanque" -> sea lion inside pool AND a semanticConstraint on sea lion swimming.
+Preserve a supported spatial relation even when an action in the same question requires semantic verification.
 "pessoas sentadas a mesa com enfeites de natal" uses sitting_at table and table decorated_with christmas decoration.
 "ator conversando com crianca" uses talking_to, not mere proximity. Named actors require actorName
 and type person, matched only to editorial identity; names do not come from visual recognition.
@@ -73,6 +98,11 @@ export const ontologyPrompt = `Use singular, lowercase, plain English canonical 
 Use ONLY these relationship predicates: ${predicates.join(", ")}.
 Entity types must be consistent: person/adult/child are person; cat/dog/bird/horse are animal,
 not object. Sofa/table/chair and Christmas decorations are object.
+Water enclosures/piscinas/tanques aquaticos use name pool and type object.
+Keep the animal species consistent between caption, evidence and entity.name: leão-marinho is sea lion,
+foca is seal, golfinho is dolphin. These are NOT interchangeable. Do not label a lion as cat if lion is visible.
+If species is uncertain, use a genuinely supported broader name and state uncertainty in the caption rather
+than asserting one species in Portuguese and recording a different species in the canonical English name.
 Choose the most specific supported predicate; do not invent predicates or infer unstated relationships.
 People are anonymous occurrences with type person and name person, child, or adult.
 Use child or adult only when the broad visual category is clear; do not estimate exact age.

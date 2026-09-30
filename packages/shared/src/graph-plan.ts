@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { QueryPlan, Timecode } from "./index.js";
-import { normalizeLabel, observationPredicates, symmetricPredicates } from "./ontology.js";
+import { normalizeLabel, observationEntityNames, observationEntityTypes, observationPredicates, symmetricPredicates } from "./ontology.js";
 import { queryPlanSchema } from "./schemas.js";
 import { canVerifyConjunction, intersectIntervals } from "./temporal.js";
 import type { SceneRecord } from "./types.js";
@@ -27,8 +27,9 @@ export function compileMatch(planInput: QueryPlan, scene: SceneRecord): {
   plan.entities.forEach((entity, index) => {
     script += ".select('root').out('contains').hasLabel('Occurrence')";
     if (entity.type) {
-      bindings[`type${index}`] = entity.type;
-      script += `.has('entityType',type${index})`;
+      const types = observationEntityTypes(entity.name, entity.type);
+      bindings[`type${index}`] = types.length === 1 ? types[0] : types;
+      script += `.has('entityType',${types.length === 1 ? `type${index}` : `within(type${index})`})`;
     }
     if (entity.actorName) {
       bindings[`actor${index}`] = normalizeLabel(entity.actorName);
@@ -36,8 +37,9 @@ export function compileMatch(planInput: QueryPlan, scene: SceneRecord): {
     } else if (normalizeLabel(entity.name) === "person") {
       script += ".has('entityType','person')";
     } else {
-      bindings[`name${index}`] = normalizeLabel(entity.name);
-      script += `.has('nameNormalized',name${index})`;
+      const names = observationEntityNames(entity.name);
+      bindings[`name${index}`] = names.length === 1 ? names[0] : names;
+      script += `.has('nameNormalized',${names.length === 1 ? `name${index}` : `within(name${index})`})`;
     }
     for (let other = 0; other < index; other++) script += `.where(neq('v${other}'))`;
     script += `.as('v${index}').limit(256)`;

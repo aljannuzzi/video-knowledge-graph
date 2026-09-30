@@ -141,6 +141,8 @@ O particionamento por vídeo favorece percursos locais. Consultas globais por at
 4. A descrição composta recebe um embedding; os metadados são persistidos em NoSQL e projetados em Gremlin.
 5. O editor revisa evidências e pode associar o nome de um ator a uma ocorrência.
 
+A extração visual usa saída estruturada com JSON Schema. `person` é o tipo da entidade; `adult` e `child` são categorias de nome, não tipos adicionais. O adaptador também normaliza essas duas variantes legadas antes da validação, sem aceitar tipos arbitrários, inferir identidades ou relaxar os limites temporais.
+
 O perfil Azure desta demo utiliza **GPT-5.4** para análise multimodal/interpretação e **text-embedding-3-large**, reduzido a **1536 dimensões**, para recuperação. Os nomes dos deployments são configuráveis; não há chamadas de IA no browser. Trocar o modelo ou a dimensão exige avaliar compatibilidade e reindexar quando necessário.
 
 **Amostragem não é análise de todos os frames.** Janelas curtas limitam custo, latência e tamanho de contexto, mas podem perder ações breves. “Conversando” inferido visualmente é uma observação sobre a imagem, não uma transcrição nem prova de diálogo audível. O pipeline não inventa falas.
@@ -179,6 +181,8 @@ Texto do usuário e saídas do modelo não são executados como código SQL ou G
 Conjunções de várias entidades exigem evidência relacional temporal para cada variável. A presença de dois nomes em uma mesma janela, sem uma relação que sustente o intervalo, não é tratada como coocorrência comprovada. A ontologia inclui `sitting_on`, `sitting_at`, `decorated_with` e `talking_to`; este último representa conversa aparente visualmente, não confirmação por áudio.
 
 O planejador usa saída estruturada com vocabulário aberto de entidades: “gato” é `cat`, do tipo `animal`, não uma entidade proibida por não aparecer em um exemplo. Preposições também expressam relações: “gato no sofá” pede `on`; “pessoa e gato no sofá” pede duas relações `on` com o mesmo sofá. A consulta genérica aceita evidências `on`, `sitting_on`, `standing_on` ou `lying_on`. A implicação é **unidirecional**: “sentado no sofá” satisfaz “no sofá”, mas uma simples observação “no sofá” não comprova que o sujeito está sentado. A expansão ocorre em parâmetros do Gremlin, preservando as evidências, a direção e os intervalos originais.
+
+Conceitos equivalentes usam nomes consistentes entre a pergunta e os metadados. Um tanque aquático ou piscina onde animais nadam é representado por `pool`; variações como `swimming pool` e `aquarium tank` são aceitas sem confundir o conceito com um tanque de combustível ou veículo. Espécies distintas não são sinônimos: `sea lion`, `seal` e `dolphin` permanecem separados. Quando descrição e entidade divergem, a classificação deve ser revisada com as evidências visuais, não ampliada artificialmente para produzir um resultado.
 
 Ações que não possuem um predicado próprio não viram vértices fictícios. “Cachorro sendo penteado”, por exemplo, gera uma restrição semântica sobre a ocorrência do cachorro. Um verificador avalia as evidências já armazenadas e deve citar entidades e relações temporais existentes que sustentem a ação. A aplicação confere os IDs, a conexão entre as ocorrências, os intervalos e a presença das arestas na versão ativa do Gremlin. A legenda sozinha, proximidade ou presença de uma escova não bastam. Essa etapa é inferência sobre metadados observados, não uma nova observação do vídeo, e não reprocessa nem altera o acervo.
 

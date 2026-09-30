@@ -5,7 +5,7 @@ import { ValidationError } from "./types.js";
 import { ontologyPrompt, queryOntologyPrompt } from "./ontology.js";
 import {
   actionEvidenceJsonSchema, actionEvidenceSchema, queryPlanJsonSchema, queryPlanSchema,
-  validateVisualAnalysis, type VisualAnalysis
+  validateVisualAnalysis, visualAnalysisJsonSchema, type VisualAnalysis
 } from "./schemas.js";
 
 type Message = { role: "system" | "user"; content: string | Array<Record<string, unknown>> };
@@ -206,7 +206,7 @@ or other real people. Describe people only as anonymous people and visible actio
 Use person, child, or adult as anonymous broad categories when visually clear, not personal names.
 Evidence must say which frame timestamps support each relation. Do not claim you heard audio.` },
       { role: "user", content }
-    ], 10_000);
+    ], 10_000, visualAnalysisJsonSchema);
     return validateVisualAnalysis(raw, bounds);
   }
 }

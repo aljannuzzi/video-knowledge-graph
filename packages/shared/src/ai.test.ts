@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { AI } from "./ai.js";
 import { loadConfig } from "./config.js";
 import { isPermanentError } from "./types.js";
-import { queryPlanJsonSchema } from "./schemas.js";
+import { queryPlanJsonSchema, visualAnalysisJsonSchema } from "./schemas.js";
 
 const environment = {
   ENVIRONMENT: "local", LOCAL_AUTH_DISABLED: "true", AZURE_STORAGE_ACCOUNT: "teststore",
@@ -79,4 +79,18 @@ test("invalid, truncated, and empty embeddings are rejected", async () => {
   await assert.rejects(ai.embed("hello"), error => isPermanentError(error));
   const truncated = new AI(config, credential, fetcher(() => Response.json({ choices: [{ finish_reason: "length", message: { content: "{}" } }] })));
   await assert.rejects(truncated.plan("hello"), error => isPermanentError(error));
+});
+test("vision extraction requests strict entity types and validates returned metadata", async () => {
+  const ai = new AI(config, credential, fetcher((_url, body) => {
+    assert.equal(body.response_format.type, "json_schema");
+    assert.equal(body.response_format.json_schema.strict, true);
+    assert.deepEqual(body.response_format.json_schema.schema, visualAnalysisJsonSchema);
+    return Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({
+      caption: "Anonymous person", entities: [{ id: "p", type: "person", name: "adult", confidence: 0.9 }],
+      relations: [], tags: []
+    }) } }] });
+  }));
+  const result = await ai.analyzeFrames([{ seconds: 12, dataUrl: "data:image/jpeg;base64,AA==" }],
+    { startSeconds: 12, endSeconds: 24 });
+  assert.equal(result.entities[0].type, "person");
 });

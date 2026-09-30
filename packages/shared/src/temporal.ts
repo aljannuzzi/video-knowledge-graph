@@ -1,5 +1,5 @@
 import type { QueryPlan, SceneEntity, SceneRelation, Timecode } from "./index.js";
-import { normalizeLabel, observationPredicates, symmetricPredicates } from "./ontology.js";
+import { normalizeLabel, observationEntityNames, observationEntityTypes, observationPredicates, symmetricPredicates } from "./ontology.js";
 
 export function intersectIntervals(intervals: Timecode[]): Timecode | undefined {
   if (!intervals.length) return undefined;
@@ -11,13 +11,13 @@ export function intersectIntervals(intervals: Timecode[]): Timecode | undefined 
 }
 
 export function entityMatches(entity: SceneEntity, expected: QueryPlan["entities"][number]): boolean {
-  if (expected.type && entity.type !== expected.type) return false;
+  if (expected.type && !observationEntityTypes(expected.name, expected.type).includes(entity.type)) return false;
   if (expected.actorName) {
     return entity.type === "person" && entity.identitySource === "editor" &&
       !!entity.actorName && normalizeLabel(entity.actorName) === normalizeLabel(expected.actorName);
   }
   if (normalizeLabel(expected.name) === "person") return entity.type === "person";
-  return normalizeLabel(entity.name) === normalizeLabel(expected.name);
+  return observationEntityNames(expected.name).includes(normalizeLabel(entity.name));
 }
 
 export function canVerifyConjunction(plan: QueryPlan): boolean {
