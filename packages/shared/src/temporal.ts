@@ -23,6 +23,7 @@ export function entityMatches(entity: SceneEntity, expected: QueryPlan["entities
 export function canVerifyConjunction(plan: QueryPlan): boolean {
   if (plan.entities.length <= 1) return true;
   const observed = new Set(plan.relations.flatMap(relation => [relation.subject, relation.object]));
+  for (const constraint of plan.semanticConstraints ?? []) observed.add(constraint.variable);
   return plan.entities.every(entity => observed.has(entity.variable));
 }
 

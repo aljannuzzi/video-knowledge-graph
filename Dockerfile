@@ -27,10 +27,13 @@ FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV FRONTEND_DIST=/app/apps/frontend/dist
+ENV WORKER_WORK_ROOT=/home/node/.work/jobs
+ENV API_UPLOAD_ROOT=/home/node/.work/uploads
 
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends ffmpeg tini \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && install -d -m 700 -o node -g node /home/node/.work /home/node/.work/jobs /home/node/.work/uploads
 
 WORKDIR /app
 

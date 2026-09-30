@@ -8,7 +8,7 @@ import {
   isTransient, LeaseLostError, PermanentError, type JobContext, type JobRecord,
   type SceneRecord, type Services
 } from "./contracts.js";
-import { executeJob, type PipelineOptions } from "./pipeline.js";
+import { executeJob, resolveWorkRoot, type PipelineOptions } from "./pipeline.js";
 
 const timestamp = "2026-09-30T12:00:00.000Z";
 const canonicalUri = "https://storage.example.test/videos/canonical.mp4";
@@ -289,6 +289,12 @@ async function withFixture(run: (f: Fixture) => Promise<void>): Promise<void> {
     }
   }
 }
+
+test("resolveWorkRoot prefers explicit configuration and otherwise falls back to the user home directory", () => {
+  assert.equal(resolveWorkRoot("worker-cache", "ignored-home"), resolve("worker-cache"));
+  assert.equal(resolveWorkRoot(undefined, resolve("home", "node")), resolve("home", "node", ".work", "jobs"));
+  assert.throws(() => resolveWorkRoot(" ", " "));
+});
 
 function edited(value: SceneRecord): SceneRecord {
   return {
@@ -651,6 +657,25 @@ test("export uses canonical video, precise clip times and a faithful manifest wi
     assert.equal(f.uploads[0].bytes.toString(), "TEST ONLY: archive output, not a real ZIP");
     assert.deepEqual(f.saves, []);
     assert.deepEqual(f.embeddedTexts, []);
+  });
+});
+
+test("export uses WORKER_WORK_ROOT when no explicit work root is supplied", async () => {
+  await withFixture(async f => {
+    f.seed(scene({ graphStatus: "ready" }));
+    const env = process.env.WORKER_WORK_ROOT;
+    process.env.WORKER_WORK_ROOT = f.workRoot;
+    try {
+      const { workRoot: _ignored, ...options } = f.options;
+      const result = await executeJob(f.services, exportJob(), f.context, () => "unused", options);
+      assert.deepEqual(result, { outputUri });
+      assert.equal(f.downloads.length, 1);
+      assert.deepEqual(f.extractions.map(value => value.timecode), [{ startSeconds: 3.125, endSeconds: 5.875 }]);
+      assert.equal(f.uploads[0].name, "job-1/clips.zip");
+    } finally {
+      if (env === undefined) delete process.env.WORKER_WORK_ROOT;
+      else process.env.WORKER_WORK_ROOT = env;
+    }
   });
 });
 

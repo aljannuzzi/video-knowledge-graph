@@ -9,6 +9,7 @@ coverage/
 Dockerfile.local
 .DS_Store
 .local/
+.work/
 .env.azure
 *.bicep.json
 infra/*.json

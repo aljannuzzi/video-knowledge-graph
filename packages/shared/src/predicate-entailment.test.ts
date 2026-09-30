@@ -41,9 +41,15 @@ for (const [query, subjects] of [
   test(`${query}: broad surface relation retrieves the observed seated scene`, async () => {
     const parsed = plan([...subjects]);
     const result = await search({
-      ai: { plan: async () => parsed, embed: async () => Array(1536).fill(0.1) },
+      ai: {
+        plan: async () => parsed, embed: async () => Array(1536).fill(0.1),
+        verifyAction: async () => { throw new Error("Structured relation does not need action verification"); }
+      },
       store: { vectorCandidates: async () => [{ scene, distance: 0.25 }], getScene: async () => scene },
-      graph: { match: async (s, p) => matchTemporal(p, s.entities, s.relations, s.timecode).map(x => x.timecode) }
+      graph: {
+        match: async (s, p) => matchTemporal(p, s.entities, s.relations, s.timecode).map(x => x.timecode),
+        matchEvidence: async () => { throw new Error("Structured relation does not need action proof"); }
+      }
     }, { query });
     assert.equal(result.hits.length, 1);
     assert.equal(result.hits[0].scene.id, scene.id);

@@ -161,6 +161,10 @@ Conjunções de várias entidades exigem evidência relacional temporal para cad
 
 O planejador usa saída estruturada com vocabulário aberto de entidades: “gato” é `cat`, do tipo `animal`, não uma entidade proibida por não aparecer em um exemplo. Preposições também expressam relações: “gato no sofá” pede `on`; “pessoa e gato no sofá” pede duas relações `on` com o mesmo sofá. A consulta genérica aceita evidências `on`, `sitting_on`, `standing_on` ou `lying_on`. A implicação é **unidirecional**: “sentado no sofá” satisfaz “no sofá”, mas uma simples observação “no sofá” não comprova que o sujeito está sentado. A expansão ocorre em parâmetros do Gremlin, preservando as evidências, a direção e os intervalos originais.
 
+Ações que não possuem um predicado próprio não viram vértices fictícios. “Cachorro sendo penteado”, por exemplo, gera uma restrição semântica sobre a ocorrência do cachorro. Um verificador avalia as evidências já armazenadas e deve citar entidades e relações temporais existentes que sustentem a ação. A aplicação confere os IDs, a conexão entre as ocorrências, os intervalos e a presença das arestas na versão ativa do Gremlin. A legenda sozinha, proximidade ou presença de uma escova não bastam. Essa etapa é inferência sobre metadados observados, não uma nova observação do vídeo, e não reprocessa nem altera o acervo.
+
+Consultas simples como “cachorro” buscam a entidade; “pessoa e cachorro passeando” usa `walking_with`. A verificação semântica adicional fica restrita às ações que necessitam dela, com no máximo 20 candidatos avaliados por consulta. Esse limite controla custo e latência e não oferece garantia de recuperação exaustiva.
+
 Uma busca por uma única entidade retorna a janela que contém sua observação; não determina o intervalo exato de presença daquela entidade. Esse limite fica explícito para não confundir janelas de análise com tracking contínuo. Antes de exigir precisão frame a frame, adicione tracks e intervalos por ocorrência, refine os limites com amostragem densa e avalie contra anotações humanas.
 
 O resultado de busca semântica é um conjunto limitado de candidatos, **não uma prova de cobertura completa do acervo**. “Extrair selecionados” opera sobre os resultados retornados. Para requisitos de exaustividade, use consultas estruturadas completas, paginação e avaliação de recall.
@@ -209,6 +213,8 @@ Não há capacidade pública documentada que o torne substituto de reconheciment
 | Portas de integração explícitas | Serviços de IA e banco ficam no backend; nenhum segredo chega ao frontend. |
 
 O adaptador Gremlin trata throttling por operação, inclusive quando o serviço encapsula um 429 em uma resposta Gremlin 500. IDs determinísticos e propriedades de cardinalidade simples tornam a repetição idempotente, sem reiniciar toda a projeção. O worker mantém leases e heartbeats; `/healthz` reflete a saúde das rotinas de consumo e recuperação.
+
+Uploads e extrações usam diretórios temporários graváveis separados do código da imagem (`API_UPLOAD_ROOT` e `WORKER_WORK_ROOT`). O container executa como usuário sem privilégios; as pastas `.work` ficam fora do Git e do contexto Docker. Falhas exibem categorias de diagnóstico sem copiar caminhos privados, conteúdo do acervo ou credenciais para os logs.
 
 ## Estrutura
 

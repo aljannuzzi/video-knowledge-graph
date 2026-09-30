@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, rmdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import type { SceneMetadata, Timecode, VideoAsset } from "@vkg/shared";
 import {
   isConflict, PermanentError, type JobContext, type JobRecord, type SceneRecord, type Services
@@ -50,6 +50,15 @@ function validateEmbedding(embedding: number[]): void {
 
 function assertEtag(scene: SceneRecord): void {
   if (!scene._etag) throw new Error("Store must return _etag for optimistic scene updates");
+}
+
+export function resolveWorkRoot(configured = process.env.WORKER_WORK_ROOT, home = homedir()): string {
+  if (configured !== undefined) {
+    if (!configured.trim()) throw new Error("WORKER_WORK_ROOT must not be empty");
+    return resolve(configured);
+  }
+  if (typeof home === "string" && home.trim()) return resolve(home, ".work", "jobs");
+  throw new Error("Worker work root is not configured");
 }
 
 // Never regenerate an existing scene's editorial metadata. Each embedding and
@@ -122,8 +131,7 @@ export async function executeJob(
 ): Promise<{ outputUri?: string }> {
   context.assertOwned();
   const jobId = validateId(job.id, "job ID");
-  const workRoot = options.workRoot ??
-    resolve(dirname(fileURLToPath(import.meta.url)), "..", ".work", "jobs");
+  const workRoot = options.workRoot ?? resolveWorkRoot();
   const jobRoot = join(workRoot, jobId);
   // A stale worker may finish cleanup after another owner claims the same job.
   // Each claim therefore owns a separate subdirectory, never the entire job root.

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import type { Request, Response } from "express";
 import multer from "multer";
@@ -28,7 +29,9 @@ export async function dispatch(services: Services, job: JobRecord): Promise<void
 
 export function uploadHandler(services: Services) {
   return async (request: Request, response: Response) => {
-    const directory = path.join(projectRoot, "apps", "api", ".work", "uploads", randomUUID());
+    const uploadRoot = process.env.API_UPLOAD_ROOT ?? path.join(homedir(), ".work", "uploads");
+    if (!uploadRoot.trim()) throw new Error("API_UPLOAD_ROOT must not be empty");
+    const directory = path.join(uploadRoot, randomUUID());
     await mkdir(directory, { recursive: true });
     const receive = multer({
       storage: multer.diskStorage({

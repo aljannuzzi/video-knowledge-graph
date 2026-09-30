@@ -1,10 +1,11 @@
 import { createRequire } from "node:module";
 import { DEFAULT_MIN_VERSION } from "node:tls";
 import type { Config, SceneRecord } from "./types.js";
-import type { QueryPlan, Timecode } from "./index.js";
+import type { ActionEvidence, QueryPlan, Timecode } from "./index.js";
 import type { Store } from "./store.js";
 import { compileMatch, graphId, intervalsFromRows, occurrenceId, sceneVertexId } from "./graph-plan.js";
 import { normalizeLabel } from "./ontology.js";
+import { actionEvidenceInterval } from "./action-evidence.js";
 
 interface Client {
   submit(script: string, bindings: Record<string, unknown>, options?: Record<string, unknown>): Promise<{ toArray(): unknown[] }>;
@@ -181,6 +182,23 @@ export class Graph {
     // against a partially projected graph after a worker outage.
     const ready = script.replace(".as('root')", ".has('projection','ready').as('root')");
     return intervalsFromRows(await this.submit(ready, bindings), plan, scene.timecode);
+  }
+
+  async matchEvidence(scene: SceneRecord, plan: QueryPlan, proof: ActionEvidence): Promise<Timecode | undefined> {
+    const interval = actionEvidenceInterval(scene, plan, proof);
+    if (!interval) return undefined;
+    const native = await this.getScene(scene);
+    const root = sceneVertexId(scene);
+    for (const relationId of proof.relationIds) {
+      const recorded = scene.relations.find(relation => relation.id === relationId)!;
+      const edge = native.edges.find(edge => edge.id === `observation-${graphId(root, relationId)}`);
+      if (!edge || edge.source !== occurrenceId(scene, recorded.subject) ||
+          edge.target !== occurrenceId(scene, recorded.object) || edge.label !== recorded.predicate ||
+          edge.startSeconds !== recorded.timecode.startSeconds || edge.endSeconds !== recorded.timecode.endSeconds) {
+        return undefined;
+      }
+    }
+    return interval;
   }
 
   async getScene(scene: SceneRecord): Promise<MaterializedGraph> {

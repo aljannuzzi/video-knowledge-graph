@@ -330,7 +330,8 @@ for (const priorAttempts of [0, 1, 2, 3]) {
     assert.equal(f.job.attempts, priorAttempts + 1);
     assert.equal(executions, priorAttempts >= 3 ? 0 : 1);
     assert.equal(f.job.status, priorAttempts < 2 ? "queued" : "failed");
-    assert(f.job.error);
+    if (priorAttempts >= 3) assert.equal(f.job.error, "Retry budget exhausted (permanent)");
+    else assert.match(f.job.error ?? "", /Transient job failure \(remote-service:503\); retry (scheduled|budget exhausted)/);
     if (priorAttempts < 2) {
       assert.equal(f.job.stage, "retry:embedding");
       assert(Date.parse(f.job.nextDispatchAt) >= before + 30_000 * 2 ** priorAttempts);
@@ -357,7 +358,11 @@ test("legacy zero-attempt claims count as attempt one without writing an increme
 });
 
 for (const kind of ["ingest", "reindex", "export"] as const) {
-  for (const failure of ["local-permanent", "shared-permanent", "unknown"] as const) {
+  for (const [failure, diagnostic] of [
+    ["local-permanent", "permanent"],
+    ["shared-permanent", "shared-permanent:503"],
+    ["unknown", "unknown"]
+  ] as const) {
     test(`${failure} ${kind} errors are not retried and only ingest fails the immutable video`, async () => {
       const f = fixture({ kind });
       const worker = f.makeWorker({
@@ -370,6 +375,7 @@ for (const kind of ["ingest", "reindex", "export"] as const) {
       });
       await worker.processMessage(f.message);
       assert.equal(f.job.status, "failed");
+      assert.equal(f.job.error, `Permanent or non-transient job failure (${diagnostic})`);
       assert.equal(f.videos.length, kind === "ingest" ? 1 : 0);
       assert.equal(f.deletes.length, 1);
       assert(!f.events.join(" ").includes("private payload"));
@@ -377,6 +383,27 @@ for (const kind of ["ingest", "reindex", "export"] as const) {
     });
   }
 }
+
+test("filesystem failures expose only a safe diagnostic code", async () => {
+  const f = fixture({ kind: "export" });
+  await f.makeWorker({
+    execute: async () => {
+      throw Object.assign(new Error("EACCES: permission denied, mkdir '/private/source/path'"), { code: "EACCES" });
+    }
+  }).processMessage(f.message);
+  assert.equal(f.job.error, "Permanent or non-transient job failure (local-filesystem:EACCES)");
+  assert(!f.events.join(" ").includes("/private/source/path"));
+});
+test("unexpected error codes cannot leak private strings into job diagnostics", async () => {
+  const f = fixture({ kind: "export" });
+  await f.makeWorker({
+    execute: async () => {
+      throw Object.assign(new Error("private message"), { code: "private source or credential" });
+    }
+  }).processMessage(f.message);
+  assert.equal(f.job.error, "Permanent or non-transient job failure (unknown)");
+  assert(!f.events.join(" ").includes("private"));
+});
 
 for (const status of ["running", "queued", "completed", "failed"] as const) {
   test(`duplicate ${status} messages do not execute and only terminal duplicates are deleted`, async () => {

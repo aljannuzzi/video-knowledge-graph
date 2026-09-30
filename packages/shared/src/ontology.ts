@@ -44,6 +44,23 @@ the graph engine. Do not encode those alternatives as multiple simultaneous rela
 person on sofa AND cat on sofa. It is NOT a bare noun list. Do not add a person-cat relation.
 "gato no sofa" needs only cat and sofa; never add a person because one may exist in the catalog.
 "pessoa no sofa" needs only person and sofa.
+A SINGLE noun ("cachorro", "gato", "person") is always a supported entity-only query:
+one entity, relations:[], semanticConstraints:[]. Never mark it unsupported for lacking an action.
+"cachorro e pessoa passeando", "pessoa passeando com cachorro", "walking a dog" -> person walking_with dog.
+Actions are relations/constraints on real occurrences, not fabricated action vertices.
+Do NOT create a grooming/combing/walking node unless the user explicitly asks for an action label itself.
+For an action NOT expressible by the closed predicates, use semanticConstraints anchored to the requested
+entity and omit invented proxy relations. It will be verified against existing caption AND temporal edge
+evidence in each candidate, not accepted from entity co-occurrence.
+"cachorro sendo penteado" -> entities:[dog], relations:[], semanticConstraints:[{variable:dogVariable,
+description:"o cachorro está sendo penteado ou escovado"}].
+"pessoa penteando cachorro" -> entities:[person,dog], relations:[],
+semanticConstraints for BOTH variables describing the same requested person combing that dog.
+Active and passive wording describe the SAME action. Do not require a 'grooming' vertex or substitute
+interacting_with/holding/using alone for combing. The semantic verifier must prove the specific action.
+Do not add brush/comb/person as requested entities for a passive dog query: supporting tools/people may be
+cited from observations, but the question did not impose their appearance as independent constraints.
+Use semanticConstraints:[] when requested relations are directly expressible (walking_with, sitting_on, etc.).
 "pessoas sentadas a mesa com enfeites de natal" uses sitting_at table and table decorated_with christmas decoration.
 "ator conversando com crianca" uses talking_to, not mere proximity. Named actors require actorName
 and type person, matched only to editorial identity; names do not come from visual recognition.

@@ -5,6 +5,8 @@ node_modules
 **/node_modules
 dist
 **/dist
+**/.work
+**/.local
 coverage
 .vite
 .DS_Store

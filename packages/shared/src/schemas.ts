@@ -38,6 +38,9 @@ export const queryPlanSchema = z.object({
   relations: z.array(z.object({
     subject: variable, predicate: z.enum(predicates), object: variable
   }).strict()).max(10),
+  semanticConstraints: z.array(z.object({
+    variable, description: z.string().trim().min(3).max(500)
+  }).strict()).max(4).optional(),
   explanation: z.string().min(1).max(2000)
 }).strict().superRefine((plan, ctx) => {
   const names = new Set(plan.entities.map(entity => entity.variable));
@@ -49,6 +52,9 @@ export const queryPlanSchema = z.object({
     if (!names.has(relation.subject) || !names.has(relation.object) || relation.subject === relation.object) {
       ctx.addIssue({ code: "custom", message: "Relations must refer to distinct declared variables" });
     }
+  }
+  for (const constraint of plan.semanticConstraints ?? []) {
+    if (!names.has(constraint.variable)) ctx.addIssue({ code: "custom", message: "Semantic constraint references an undeclared variable" });
   }
   for (const entity of plan.entities) {
     if (entity.actorName && entity.type !== "person") {
@@ -63,7 +69,7 @@ export const queryPlanSchema = z.object({
 export const queryPlanJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["entities", "relations", "explanation"],
+  required: ["entities", "relations", "semanticConstraints", "explanation"],
   properties: {
     entities: {
       type: "array",
@@ -92,6 +98,48 @@ export const queryPlanJsonSchema = {
         }
       }
     },
+    semanticConstraints: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["variable", "description"],
+        properties: {
+          variable: { type: "string" },
+          description: { type: "string", description: "Requested action not representable by existing predicates, anchored to this entity variable." }
+        }
+      }
+    },
+    explanation: { type: "string" }
+  }
+};
+
+export const actionEvidenceSchema = z.object({
+  matched: z.boolean(),
+  entityBindings: z.array(z.object({ variable, entityId: identifierSchema }).strict()).max(8),
+  relationIds: z.array(identifierSchema).max(12),
+  explanation: z.string().trim().min(1).max(2000)
+}).strict().superRefine((value, ctx) => {
+  if (value.matched && (!value.entityBindings.length || !value.relationIds.length)) {
+    ctx.addIssue({ code: "custom", message: "A semantic match requires anchored entities and temporal evidence" });
+  }
+  if (!value.matched && (value.entityBindings.length || value.relationIds.length)) {
+    ctx.addIssue({ code: "custom", message: "A rejected match cannot claim evidence" });
+  }
+});
+
+export const actionEvidenceJsonSchema = {
+  type: "object", additionalProperties: false,
+  required: ["matched", "entityBindings", "relationIds", "explanation"],
+  properties: {
+    matched: { type: "boolean" },
+    entityBindings: {
+      type: "array", items: {
+        type: "object", additionalProperties: false, required: ["variable", "entityId"],
+        properties: { variable: { type: "string" }, entityId: { type: "string" } }
+      }
+    },
+    relationIds: { type: "array", items: { type: "string" } },
     explanation: { type: "string" }
   }
 };

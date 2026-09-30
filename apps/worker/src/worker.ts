@@ -3,7 +3,7 @@ import { createServer, get, type Server } from "node:http";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
-  isTransient, LeaseLostError, loadSharedServer, PermanentError,
+  errorCode, isTransient, LeaseLostError, loadSharedServer, PermanentError,
   type JobContext, type JobRecord, type QueueMessage, type Services, type SharedServer
 } from "./contracts.js";
 import { executeJob } from "./pipeline.js";
@@ -24,6 +24,42 @@ export interface WorkerOptions {
   retryBaseMs?: number;
   healthTimeoutMs?: number;
   log?: (event: string) => void;
+}
+
+function errorDiagnostic(error: unknown, sharedPermanent: SharedServer["isPermanentError"]): string {
+  const code = errorCode(error);
+  const httpCode = (typeof code === "number" && Number.isInteger(code) && code >= 100 && code <= 599) ||
+    (typeof code === "string" && /^[1-5]\d{2}$/.test(code)) ? String(code) : undefined;
+  if (error instanceof LeaseLostError) return "lease-lost";
+  if (typeof code === "string" && ["EACCES", "EPERM", "EROFS", "ENOSPC"].includes(code)) {
+    return `local-filesystem:${code}`;
+  }
+  if (sharedPermanent(error)) return `shared-permanent${httpCode === undefined ? "" : `:${httpCode}`}`;
+  if (error instanceof PermanentError) return `permanent${httpCode === undefined ? "" : `:${httpCode}`}`;
+  if (typeof code === "string" && [
+    "ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EAI_AGAIN", "ENETUNREACH", "EPIPE", "REQUEST_SEND_ERROR"
+  ].includes(code)) {
+    return `network:${code}`;
+  }
+  if (httpCode !== undefined) {
+    return `remote-service:${httpCode}`;
+  }
+  if (error instanceof Error && error.name === "AbortError") return "aborted";
+  return "unknown";
+}
+
+function failureMessage(
+  error: unknown, transient: boolean, retry: boolean, attempt: number, sharedPermanent: SharedServer["isPermanentError"]
+): string {
+  const diagnostic = errorDiagnostic(error, sharedPermanent);
+  if (transient) {
+    return retry
+      ? `Transient job failure (${diagnostic}); retry scheduled`
+      : `Transient job failure (${diagnostic}); retry budget exhausted`;
+  }
+  return attempt > 3
+    ? `Retry budget exhausted (${diagnostic})`
+    : `Permanent or non-transient job failure (${diagnostic})`;
 }
 
 export class Worker {
@@ -263,6 +299,8 @@ export class Worker {
         if (failed) {
           const transient = isTransient(failure, this.options.isPermanentError);
           const retry = transient && attempt < 3;
+          const error = failureMessage(failure, transient, retry, attempt, this.options.isPermanentError);
+          this.log(`job ${job!.id} failed: ${error}`);
           // Reindex failure concerns one scene version, not the immutable video.
           // Its canonical graphStatus/job error already exposes failure; never
           // downgrade a video from an obsolete editorial job.
@@ -277,9 +315,7 @@ export class Worker {
           await write({
             status: retry ? "queued" : "failed",
             stage: `${retry ? "retry" : "failed"}:${job!.stage}`,
-            error: transient
-              ? (retry ? "Transient job failure; retry scheduled" : "Transient job failure; retry budget exhausted")
-              : (attempt > 3 ? "Retry budget exhausted" : "Permanent or non-transient job failure"),
+            error,
             ...(retry ? { nextDispatchAt: new Date(Date.now() + this.retryBaseMs * 2 ** (attempt - 1)).toISOString() } : {}),
             leaseUntil: new Date(0).toISOString()
           });

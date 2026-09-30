@@ -62,7 +62,18 @@ export type Job = {
 };
 export type QueryEntity = { variable: string; name: string; type?: SceneEntity["type"]; actorName?: string };
 export type QueryRelation = { subject: string; predicate: string; object: string };
-export type QueryPlan = { entities: QueryEntity[]; relations: QueryRelation[]; explanation: string };
+export type QueryPlan = {
+  entities: QueryEntity[];
+  relations: QueryRelation[];
+  explanation: string;
+  semanticConstraints?: Array<{ variable: string; description: string }>;
+};
+export type ActionEvidence = {
+  matched: boolean;
+  entityBindings: Array<{ variable: string; entityId: string }>;
+  relationIds: string[];
+  explanation: string;
+};
 export type SearchRequest = { query: string; limit?: number };
 export type SearchHit = {
   scene: SceneMetadata;

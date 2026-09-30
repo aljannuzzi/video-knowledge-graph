@@ -16,9 +16,15 @@ const scene: SceneRecord = {
 const plan: QueryPlan = { entities: [{ variable: "x", name: "unicorn" }], relations: [], explanation: "Unknown animal requested." };
 function services() {
   return {
-    ai: { plan: async () => plan, embed: async () => Array(1536).fill(0.1) },
+    ai: {
+      plan: async () => plan, embed: async () => Array(1536).fill(0.1),
+      verifyAction: async () => { throw new Error("Entity lookup must not invoke semantic verification"); }
+    },
     store: { vectorCandidates: async () => [{ scene, distance: 0.01 }], getScene: async () => scene },
-    graph: { match: async (value: SceneRecord, query: QueryPlan) => matchTemporal(query, value.entities, value.relations, value.timecode).map(match => match.timecode) }
+    graph: {
+      match: async (value: SceneRecord, query: QueryPlan) => matchTemporal(query, value.entities, value.relations, value.timecode).map(match => match.timecode),
+      matchEvidence: async () => { throw new Error("Entity lookup must not need an action proof"); }
+    }
   };
 }
 test("nonexistent search yields no fabricated hits even with a high vector score", async () => {
