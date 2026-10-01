@@ -131,6 +131,17 @@ Essa separação é um padrão **CQRS com projeção reconstruível**, não duas
 
 As consultas de grafo são delimitadas por vídeo, cena e versão. Relações compartilham variáveis de ocorrência para exigir, por exemplo, que a pessoa e o gato estejam no mesmo sofá. A verificação temporal calcula a interseção dos intervalos das arestas. Consultas globais por ator e percursos profundos exigem avaliar índices, planos de execução, limites de expansão e capacidade do banco.
 
+### Reconstrução da projeção
+
+Com o esquema SQL inicializado e acesso aos serviços configurado no `.env`, é possível reconstruir o grafo sem reenviar os vídeos:
+
+```powershell
+npm run build
+node --env-file=.env .\apps\worker\dist\rebuildGraph.js
+```
+
+A rotina lê as cenas canônicas no Cosmos DB, projeta os nós e as arestas em transações e confere novamente a versão antes de marcar a projeção como disponível. Não refaz embeddings, não executa visão e não substitui identidades editoriais. Um vídeo cuja análise ainda esteja incompleta continua incompleto; reconstruir o grafo não inventa as cenas ausentes.
+
 ## Ingestão e geração de metadados
 
 ![Pipeline visual e módulo opcional de identidade](docs/images/metadata-pipeline.svg)
