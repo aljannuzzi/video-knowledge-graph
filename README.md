@@ -39,6 +39,8 @@ Esta implementação demonstra o caminho, não promete localizar automaticamente
 
 Aplicação de referência para indexar vídeos, pesquisar situações em linguagem natural e extrair os intervalos encontrados. Combina análise multimodal no Azure OpenAI, busca vetorial no Cosmos DB for NoSQL e uma projeção nativa de grafo no Azure SQL Database, com tabelas de nós e arestas e consultas `MATCH`.
 
+**A separação central do pattern:** o Cosmos DB preserva o conhecimento extraído e suas versões; o Azure SQL Graph organiza as conexões usadas para verificar as buscas; o Blob Storage preserva a mídia original e os clips. O grafo pode ser reconstruído a partir do Cosmos DB sem alterar os vídeos nem as associações editoriais.
+
 A identidade dos atores nesta demo é **editorial**: uma pessoa confirma o nome associado a uma ocorrência visual. O modelo de visão não identifica pessoas pelo rosto. O pipeline opcional com Azure AI Video Indexer está descrito adiante, mas não é executado pela aplicação.
 
 ![Workspace editorial com busca e evidências de relações](docs/images/workspace.png)
@@ -130,6 +132,18 @@ Cosmos DB NoSQL mantém documentos e embeddings; Azure SQL Graph mantém nós, a
 Essa separação é um padrão **CQRS com projeção reconstruível**, não duas bases editadas independentemente. O status de projeção torna falhas visíveis. Uma anotação editorial exige atualizar o metadado, o embedding e a projeção antes de apresentar o novo estado como consultável.
 
 As consultas de grafo são delimitadas por vídeo, cena e versão. Relações compartilham variáveis de ocorrência para exigir, por exemplo, que a pessoa e o gato estejam no mesmo sofá. A verificação temporal calcula a interseção dos intervalos das arestas. Consultas globais por ator e percursos profundos exigem avaliar índices, planos de execução, limites de expansão e capacidade do banco.
+
+### Estrutura nativa no Azure SQL Graph
+
+| Objeto SQL | Função |
+|---|---|
+| `vkg.Node` (`AS NODE`) | Representa cenas, ocorrências visuais e identidades de atores confirmadas editorialmente. |
+| `vkg.Edge` (`AS EDGE`) | Conecta os nós e preserva predicado, intervalo, confiança, evidência e versão da observação. |
+| `vkg.ProjectionState` | Registra a disponibilidade de cada projeção de cena e versão. |
+
+As tabelas de nós e arestas participam de consultas nativas `MATCH`; não são apenas documentos JSON apresentados como grafo. A atualização substitui a projeção da cena em uma transação, com bloqueio por cena e conferência da versão canônica. A busca só aceita resultados cuja versão continue válida no Cosmos DB.
+
+O acesso ao banco é **Entra-only**, com tokens da Managed Identity da API/worker e conexão por Private Endpoint. A identidade de execução possui permissões de dados no esquema `vkg`, não privilégios administrativos. Uma identidade separada inicializa o esquema e concede essas permissões. Esse controle protege a comunicação entre serviços; a autenticação dos usuários da interface é descrita separadamente em **Segurança, custos e limites**.
 
 ### Reconstrução da projeção
 
@@ -335,6 +349,8 @@ Os containers `scenes` e `catalog` usam throughput dedicado: **800 RU/s provisio
 `-GraphLocation` permite escolher uma região disponível para o banco sem mover os vídeos ou o Cosmos DB. Quando a região do SQL difere da região dos containers, considere latência e custos de comunicação entre regiões. A conexão continua privada; o processamento da projeção é agrupado para reduzir viagens de rede.
 
 Private Endpoints, DNS privado e o ambiente de rede também têm custos. O modo local precisa de VPN, rede peered ou estação dentro da VNet para alcançar os serviços privados; a autenticação do CLI sozinha não fornece conectividade.
+
+A implantação é incremental: remover um recurso dos templates não o exclui automaticamente da assinatura. Recursos fora do caminho ativo da aplicação podem continuar gerando cobrança. A retirada deve ser uma operação explícita, após confirmar as dependências, a preservação dos dados e a possibilidade de reconstruir as projeções necessárias.
 
 ### Vídeo de demonstração sem mídia de terceiros
 
