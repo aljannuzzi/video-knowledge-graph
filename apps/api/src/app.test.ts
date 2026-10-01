@@ -3,6 +3,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import type { JobRecord, SceneRecord } from "@vkg/shared/server";
+import { createServices, GraphAccessError } from "@vkg/shared/server";
 import { createApp } from "./app.js";
 
 type Services = Parameters<typeof createApp>[0];
@@ -67,6 +68,18 @@ async function withServer(services: Services, run: (base: string) => Promise<voi
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 }
+
+test("service graph authorization failure is 503, not a user login failure or an empty result", async () => {
+  const services = createServices(config());
+  services.store.getScene = async () => scene();
+  services.graph.getScene = async () => { throw new GraphAccessError(401); };
+  await withServer(services, async base => {
+    const response = await fetch(`${base}/api/graph/video-1/scene-1`);
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { error: "graph_access_denied" });
+  });
+  await services.graph.close();
+});
 
 test("upload accepts a durable ingest intent even when catalog job creation fails", async () => {
   let savedVideo: { id: string; jobId: string; assetUri: string; createdAt: string } | undefined;

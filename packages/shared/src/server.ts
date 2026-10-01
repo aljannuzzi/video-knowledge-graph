@@ -25,5 +25,5 @@ export { blobNameFromUri } from "./blobs.js";
 export { sceneEmbeddingText } from "./ai.js";
 export { search } from "./search.js";
 export { searchRequestSchema, clipRequestSchema, identityRequestSchema } from "./schemas.js";
-export { ValidationError, isPermanentError } from "./types.js";
+export { GraphAccessError, ValidationError, isPermanentError } from "./types.js";
 export type { Config, SceneRecord, JobRecord, QueueMessage } from "./types.js";

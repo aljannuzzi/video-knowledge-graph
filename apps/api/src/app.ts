@@ -5,7 +5,7 @@ import multer from "multer";
 import { z } from "zod";
 import type { AppConfig, ClipExtractionRequest } from "@vkg/shared";
 import {
-  clipRequestSchema, identityRequestSchema, publicJob, publicScene, publicVideo,
+  GraphAccessError, clipRequestSchema, identityRequestSchema, publicJob, publicScene, publicVideo,
   search, searchRequestSchema, type createServices
 } from "@vkg/shared/server";
 import { createAuth } from "./auth.js";
@@ -172,6 +172,9 @@ export function createApp(services: Services) {
       response.status(400).json({ error: "invalid_request", details: error.flatten() });
     } else if (error instanceof HttpError) {
       response.status(error.status).json({ error: error.code });
+    } else if (error instanceof GraphAccessError) {
+      console.error(JSON.stringify({ event: "graph_access_denied", status: error.statusCode }));
+      response.status(503).json({ error: "graph_access_denied" });
     } else if (error instanceof URIError) {
       response.status(400).json({ error: "invalid_uri" });
     } else if (error instanceof multer.MulterError) {

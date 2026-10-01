@@ -13,8 +13,11 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const payload: unknown = await response.json().catch(() => null);
-    const detail = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
+    const code = payload && typeof payload === "object" && "error" in payload && typeof payload.error === "string"
       ? payload.error : `Não foi possível concluir a solicitação (HTTP ${response.status}).`;
+    const detail = code === "graph_access_denied"
+      ? "O serviço de grafo recusou a autorização da aplicação. A busca está indisponível; isso não significa ausência de cenas. O administrador precisa revisar a configuração de acesso do serviço."
+      : code;
     if (response.status === 401) window.dispatchEvent(new Event("session-expired"));
     throw new ApiError(response.status, detail);
   }

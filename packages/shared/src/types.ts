@@ -53,6 +53,15 @@ export class ValidationError extends Error {
   override name = "ValidationError";
 }
 
+export class GraphAccessError extends Error {
+  override name = "GraphAccessError";
+  readonly statusCode: number;
+  constructor(statusCode: number) {
+    super("Graph service authorization is unavailable");
+    this.statusCode = statusCode;
+  }
+}
+
 export function isPermanentError(error: unknown): boolean {
   return error instanceof ValidationError ||
     (error instanceof Error && (error.name === "ZodError" || error.name === "PermanentError"));

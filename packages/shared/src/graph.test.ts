@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Graph, graphFailure, gremlinOptions } from "./graph.js";
 import type { Config, SceneRecord } from "./types.js";
+import { GraphAccessError } from "./types.js";
 
 const scene: SceneRecord = {
   id: "scene-1", videoId: "video-1", metadataVersion: "1", kind: "scene", updatedAt: "",
@@ -82,4 +83,17 @@ test("Gremlin options require GraphSONv2 and verified current Node TLS", () => {
   assert.equal(options.mimeType, "application/vnd.gremlin-v2.0+json");
   assert.equal(options.rejectUnauthorized, true);
   assert.equal(options.connectOnStartup, false);
+});
+test("graph authorization failures are typed and never treated as absent results or retried", async () => {
+  let attempts = 0;
+  const graph = new Graph(config, { getScene: async () => scene }, {
+    submit: async () => {
+      attempts++;
+      throw Object.assign(new Error("private service diagnostics"), { statusCode: 401 });
+    },
+    close: async () => undefined
+  }, async () => assert.fail("Authorization failures must not retry"));
+  await assert.rejects(graph.project(scene), error =>
+    error instanceof GraphAccessError && error.statusCode === 401 && !error.message.includes("private"));
+  assert.equal(attempts, 1);
 });

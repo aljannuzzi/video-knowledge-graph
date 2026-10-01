@@ -275,6 +275,8 @@ Abra `http://localhost:5173`, o mesmo origin definido em `PUBLIC_ORIGIN` no `.en
 
 Requisitos: PowerShell 7, Azure CLI com Bicep, uma assinatura Azure ativa, permissão para criar recursos e role assignments, quota dos modelos na região e capacidade de executar builds no ACR. Docker Desktop não é necessário: a imagem é compilada no Azure.
 
+**Compatibilidade de autenticação do grafo:** este adaptador usa o protocolo Gremlin com uma chave armazenada no Key Vault. A Managed Identity lê o segredo, mas não substitui essa chave na autenticação do protocolo. Se a governança exigir `disableLocalAuth=true` na conta Gremlin, esse adaptador não funciona: é necessário avaliar uma exceção formal aprovada ou uma arquitetura de grafo com autenticação compatível. O script detecta essa configuração e interrompe a publicação; não desabilita políticas nem reativa autenticação local automaticamente. Os serviços NoSQL, Storage e Azure OpenAI usam Entra ID.
+
 O script usa a assinatura informada em cada comando, sem alterar a assinatura padrão do CLI. Os parâmetros abaixo criam recursos dedicados, incluindo uma conta Azure OpenAI:
 
 ```powershell

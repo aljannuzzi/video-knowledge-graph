@@ -117,6 +117,12 @@ Save-Outputs 'infra.json' $infrastructure.properties.outputs
 $params.Remove('appPassword')
 $plainPassword = $null
 
+$graphAccount = Invoke-AzJson @('cosmosdb', 'show', '--resource-group', $ResourceGroupName,
+    '--name', $infrastructure.properties.outputs.gremlinAccountName.value)
+if ($graphAccount.disableLocalAuth -eq $true) {
+    throw 'The Gremlin account has local authentication disabled. This driver uses key-based Gremlin authentication and cannot operate in this configuration. Obtain an approved policy exception or choose a supported graph authentication architecture; this script will not weaken the control.'
+}
+
 if ($PrepareOnly) {
     Write-Host "Infrastructure ready. Non-secret outputs: $OutputPath"
     return

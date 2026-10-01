@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import { DEFAULT_MIN_VERSION } from "node:tls";
 import type { Config, SceneRecord } from "./types.js";
+import { GraphAccessError } from "./types.js";
 import type { ActionEvidence, QueryPlan, Timecode } from "./index.js";
 import type { Store } from "./store.js";
 import { compileMatch, graphId, intervalsFromRows, occurrenceId, sceneVertexId } from "./graph-plan.js";
@@ -93,6 +94,9 @@ export class Graph {
           continue;
         }
         console.error(`[graph] request failed status=${failure.statusCode} attempts=${attempt + 1}`);
+        if (failure.statusCode === 401 || failure.statusCode === 403) {
+          throw new GraphAccessError(failure.statusCode);
+        }
         throw Object.assign(new Error(`Graph request failed (${failure.statusCode})`), { statusCode: failure.statusCode });
       } finally { clearTimeout(timer); }
     }
