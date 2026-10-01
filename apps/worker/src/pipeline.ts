@@ -91,7 +91,7 @@ export async function indexScene(
     context.assertOwned();
     await context.progress("graph-projecting", 80);
     // project() must verify the active metadata version as part of its native
-    // idempotent Gremlin projection. The ETag below also fences the ready flag.
+    // idempotent SQL Graph projection. The ETag below also fences the ready flag.
     try {
       await services.graph.project(pending);
     } catch (error) {

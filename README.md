@@ -37,7 +37,7 @@ Esta implementação demonstra o caminho, não promete localizar automaticamente
 
 ## Da ideia à implementação
 
-Aplicação de referência para indexar vídeos, pesquisar situações em linguagem natural e extrair os intervalos encontrados. Combina análise multimodal no Azure OpenAI, busca vetorial no Cosmos DB for NoSQL e uma projeção nativa de grafo no Cosmos DB for Apache Gremlin.
+Aplicação de referência para indexar vídeos, pesquisar situações em linguagem natural e extrair os intervalos encontrados. Combina análise multimodal no Azure OpenAI, busca vetorial no Cosmos DB for NoSQL e uma projeção nativa de grafo no Azure SQL Database, com tabelas de nós e arestas e consultas `MATCH`.
 
 A identidade dos atores nesta demo é **editorial**: uma pessoa confirma o nome associado a uma ocorrência visual. O modelo de visão não identifica pessoas pelo rosto. O pipeline opcional com Azure AI Video Indexer está descrito adiante, mas não é executado pela aplicação.
 
@@ -65,13 +65,13 @@ Um embedding encontra candidatos semanticamente próximos. O grafo permite verif
 | API no Container Apps | Serve a UI na mesma origem; autentica, valida consultas, recupera cenas, acessa o grafo e cria jobs. |
 | Worker no Container Apps | Executa análise de mídia, enriquecimento por IA, projeção do grafo e extração FFmpeg fora das requisições interativas. |
 | Cosmos DB NoSQL | Fonte de verdade para vídeos, cenas, metadados versionados, embeddings e estado de jobs. |
-| Cosmos DB Gremlin | Projeção nativa de ocorrências e relações temporais, reconstruível a partir dos metadados canônicos. |
+| Azure SQL Graph | Projeção nativa de ocorrências e relações temporais (`AS NODE`, `AS EDGE`, `MATCH`), reconstruível a partir dos metadados canônicos. Autenticação Entra-only. |
 | Blob Storage | Vídeos originais, imagens de evidência e pacotes de saída; containers privados. |
 | Storage Queue | Entrega assíncrona de trabalho; o progresso e resultado ficam no estado persistido do job. |
 | Azure OpenAI | Modelo multimodal para observações e interpretação de consultas; modelo de embeddings para recuperação semântica. |
 | ACR, Key Vault, Managed Identity, Log Analytics | Imagens, segredos necessários, acesso a serviços e logs de execução. |
 
-O ambiente Container Apps integra uma VNet própria. Key Vault, Blob/Queue e ambos os Cosmos DB usam Private Endpoints e DNS privado, com acesso público desabilitado. Somente a aplicação autenticada tem ingress público. ACR e a conta Azure OpenAI reutilizada conservam sua configuração de rede; o acesso de dados à IA usa Entra ID.
+O ambiente Container Apps integra uma VNet própria. Key Vault, Blob/Queue, Cosmos DB NoSQL e Azure SQL Database usam Private Endpoints e DNS privado, com acesso público desabilitado. Somente a aplicação autenticada tem ingress público. ACR e a conta Azure OpenAI reutilizada conservam sua configuração de rede; o acesso de dados à IA usa Entra ID.
 
 ### Execução dos serviços
 
@@ -100,22 +100,22 @@ Exemplo simplificado de metadado canônico:
 {
   "id": "scene-002",
   "videoId": "video-042",
-  "metadataVersion": "v1",
+  "metadataVersion": "1",
   "timecode": { "startSeconds": 34, "endSeconds": 50 },
   "boundarySource": "model-estimate",
   "entities": [
-    { "id": "p1", "type": "person", "name": "pessoa", "confidence": 0.92 },
-    { "id": "c1", "type": "animal", "name": "gato", "confidence": 0.96 },
+    { "id": "p1", "type": "person", "name": "person", "confidence": 0.92 },
+    { "id": "c1", "type": "animal", "name": "cat", "confidence": 0.96 },
     { "id": "s1", "type": "object", "name": "sofa", "confidence": 0.95 }
   ],
   "relations": [
     {
-      "id": "r1", "subject": "p1", "predicate": "sentado_em", "object": "s1",
+      "id": "r1", "subject": "p1", "predicate": "sitting_on", "object": "s1",
       "timecode": { "startSeconds": 34, "endSeconds": 45 },
       "confidence": 0.90, "evidence": "Frames temporizados da cena"
     },
     {
-      "id": "r2", "subject": "c1", "predicate": "sentado_em", "object": "s1",
+      "id": "r2", "subject": "c1", "predicate": "sitting_on", "object": "s1",
       "timecode": { "startSeconds": 38, "endSeconds": 50 },
       "confidence": 0.93, "evidence": "Frames temporizados da cena"
     }
@@ -123,13 +123,13 @@ Exemplo simplificado de metadado canônico:
 }
 ```
 
-### Duas APIs Cosmos DB, duas responsabilidades
+### Fonte de verdade e grafo nativo
 
-NoSQL e Gremlin são contas distintas. O índice vetorial de NoSQL não é automaticamente um índice de Gremlin. O worker materializa a projeção do grafo usando identificadores e versões derivados da fonte de verdade.
+Cosmos DB NoSQL mantém documentos e embeddings; Azure SQL Graph mantém nós, arestas e propriedades temporais. O worker materializa a projeção do grafo usando identificadores e versões derivados da fonte de verdade. SQL Graph é uma capacidade nativa do mecanismo Azure SQL Database, não uma emulação de grafo por arrays JSON.
 
 Essa separação é um padrão **CQRS com projeção reconstruível**, não duas bases editadas independentemente. O status de projeção torna falhas visíveis. Uma anotação editorial exige atualizar o metadado, o embedding e a projeção antes de apresentar o novo estado como consultável.
 
-O particionamento por vídeo favorece percursos locais. Consultas globais por ator e grafos com percursos profundos entre milhares de vídeos exigem outra avaliação de particionamento, índices e RU. Neo4j é uma alternativa relevante quando Cypher, algoritmos de grafos ou exploração multi-hop global são requisitos centrais; não é uma dependência desta implantação.
+As consultas de grafo são delimitadas por vídeo, cena e versão. Relações compartilham variáveis de ocorrência para exigir, por exemplo, que a pessoa e o gato estejam no mesmo sofá. A verificação temporal calcula a interseção dos intervalos das arestas. Consultas globais por ator e percursos profundos exigem avaliar índices, planos de execução, limites de expansão e capacidade do banco.
 
 ## Ingestão e geração de metadados
 
@@ -138,7 +138,7 @@ O particionamento por vídeo favorece percursos locais. Consultas globais por at
 1. O usuário envia um arquivo local. A API grava o original em Blob privado e cria um job.
 2. O worker inspeciona a mídia com FFprobe e produz frames temporizados em janelas curtas.
 3. O modelo multimodal descreve a cena, objetos, ações e relações. A aplicação valida a estrutura, referências entre entidades e limites de tempo.
-4. A descrição composta recebe um embedding; os metadados são persistidos em NoSQL e projetados em Gremlin.
+4. A descrição composta recebe um embedding; os metadados são persistidos em NoSQL e projetados em Azure SQL Graph.
 5. O editor revisa evidências e pode associar o nome de um ator a uma ocorrência.
 
 A extração visual usa saída estruturada com JSON Schema. `person` é o tipo da entidade; `adult` e `child` são categorias de nome, não tipos adicionais. O adaptador também normaliza essas duas variantes legadas antes da validação, sem aceitar tipos arbitrários, inferir identidades ou relaxar os limites temporais.
@@ -160,7 +160,7 @@ Uma integração possível preservaria as demais responsabilidades do pattern:
 ```text
 Vídeo original → Video Indexer → insights e intervalos
               → normalização + enriquecimento de relações pelo modelo multimodal
-              → Cosmos NoSQL + embeddings → projeção Gremlin
+              → Cosmos NoSQL + embeddings → projeção SQL Graph
               → busca → revisão editorial → FFmpeg → clips e manifesto
 ```
 
@@ -178,15 +178,15 @@ Pergunta → plano estruturado validado → candidatos vetoriais
          → vídeo, início, fim e explicação → revisão → job de clips
 ```
 
-Texto do usuário e saídas do modelo não são executados como código SQL ou Gremlin. As consultas usam templates e parâmetros, com limites explícitos.
+Texto do usuário e saídas do modelo não são executados como código SQL. Um compilador converte o plano validado em templates T-SQL com `MATCH`, nomes de aliases controlados e valores parametrizados, com limites explícitos.
 
 Conjunções de várias entidades exigem evidência relacional temporal para cada variável. A presença de dois nomes em uma mesma janela, sem uma relação que sustente o intervalo, não é tratada como coocorrência comprovada. A ontologia inclui `sitting_on`, `sitting_at`, `decorated_with` e `talking_to`; este último representa conversa aparente visualmente, não confirmação por áudio.
 
-O planejador usa saída estruturada com vocabulário aberto de entidades: “gato” é `cat`, do tipo `animal`, não uma entidade proibida por não aparecer em um exemplo. Preposições também expressam relações: “gato no sofá” pede `on`; “pessoa e gato no sofá” pede duas relações `on` com o mesmo sofá. A consulta genérica aceita evidências `on`, `sitting_on`, `standing_on` ou `lying_on`. A implicação é **unidirecional**: “sentado no sofá” satisfaz “no sofá”, mas uma simples observação “no sofá” não comprova que o sujeito está sentado. A expansão ocorre em parâmetros do Gremlin, preservando as evidências, a direção e os intervalos originais.
+O planejador usa saída estruturada com vocabulário aberto de entidades: “gato” é `cat`, do tipo `animal`, não uma entidade proibida por não aparecer em um exemplo. Preposições também expressam relações: “gato no sofá” pede `on`; “pessoa e gato no sofá” pede duas relações `on` com o mesmo sofá. A consulta genérica aceita evidências `on`, `sitting_on`, `standing_on` ou `lying_on`. A implicação é **unidirecional**: “sentado no sofá” satisfaz “no sofá”, mas uma simples observação “no sofá” não comprova que o sujeito está sentado. A expansão ocorre em parâmetros da consulta ao grafo, preservando as evidências, a direção e os intervalos originais.
 
 Conceitos equivalentes usam nomes consistentes entre a pergunta e os metadados. Um tanque aquático ou piscina onde animais nadam é representado por `pool`; variações como `swimming pool` e `aquarium tank` são aceitas sem confundir o conceito com um tanque de combustível ou veículo. Espécies distintas não são sinônimos: `sea lion`, `seal` e `dolphin` permanecem separados. Quando descrição e entidade divergem, a classificação deve ser revisada com as evidências visuais, não ampliada artificialmente para produzir um resultado.
 
-Ações que não possuem um predicado próprio não viram vértices fictícios. “Cachorro sendo penteado”, por exemplo, gera uma restrição semântica sobre a ocorrência do cachorro. Um verificador avalia as evidências já armazenadas e deve citar entidades e relações temporais existentes que sustentem a ação. A aplicação confere os IDs, a conexão entre as ocorrências, os intervalos e a presença das arestas na versão ativa do Gremlin. A legenda sozinha, proximidade ou presença de uma escova não bastam. Essa etapa é inferência sobre metadados observados, não uma nova observação do vídeo, e não reprocessa nem altera o acervo.
+Ações que não possuem um predicado próprio não viram vértices fictícios. “Cachorro sendo penteado”, por exemplo, gera uma restrição semântica sobre a ocorrência do cachorro. Um verificador avalia as evidências já armazenadas e deve citar entidades e relações temporais existentes que sustentem a ação. A aplicação confere os IDs, a conexão entre as ocorrências, os intervalos e a presença das arestas na versão ativa do SQL Graph. A legenda sozinha, proximidade ou presença de uma escova não bastam. Essa etapa é inferência sobre metadados observados, não uma nova observação do vídeo, e não reprocessa nem altera o acervo.
 
 Consultas simples como “cachorro” buscam a entidade; “pessoa e cachorro passeando” usa `walking_with`. A verificação semântica adicional fica restrita às ações que necessitam dela, com no máximo 20 candidatos avaliados por consulta. Esse limite controla custo e latência e não oferece garantia de recuperação exaustiva.
 
@@ -229,7 +229,7 @@ Não há capacidade pública documentada que o torne substituto de reconheciment
 
 | Pattern | Aplicação concreta |
 |---|---|
-| Fonte canônica + projeção de leitura | Metadados em NoSQL; grafo reconstruível e versionado em Gremlin. |
+| Fonte canônica + projeção de leitura | Metadados em Cosmos NoSQL; grafo reconstruível e versionado em Azure SQL Graph. |
 | Recuperação vetorial + verificação relacional | Similaridade recupera candidatos; relações e tempos sustentam o match. |
 | Saída de IA como dado não confiável | Validação de esquema, IDs, intervalos e limites antes da persistência. |
 | Identidade separada de percepção | Objetos e ações pelo modelo; nomes de pessoas confirmados editorialmente. |
@@ -237,7 +237,7 @@ Não há capacidade pública documentada que o torne substituto de reconheciment
 | Evidência e proveniência | Cada observação preserva frames, modelo, versão e origem. |
 | Portas de integração explícitas | Serviços de IA e banco ficam no backend; nenhum segredo chega ao frontend. |
 
-O adaptador Gremlin trata throttling por operação, inclusive quando o serviço encapsula um 429 em uma resposta Gremlin 500. IDs determinísticos e propriedades de cardinalidade simples tornam a repetição idempotente, sem reiniciar toda a projeção. O worker mantém leases e heartbeats; `/healthz` reflete a saúde das rotinas de consumo e recuperação.
+A projeção usa IDs determinísticos e gravação transacional: uma versão só fica disponível depois que seus nós e arestas foram persistidos. A reconstrução lê os documentos do Cosmos DB e não precisa reenviar vídeos nem executar novamente os modelos de visão. O worker mantém leases e heartbeats; `/healthz` reflete a saúde das rotinas de consumo e recuperação.
 
 Uploads e extrações usam diretórios temporários graváveis separados do código da imagem (`API_UPLOAD_ROOT` e `WORKER_WORK_ROOT`). O container executa como usuário sem privilégios; as pastas `.work` ficam fora do Git e do contexto Docker. Falhas exibem categorias de diagnóstico sem copiar caminhos privados, conteúdo do acervo ou credenciais para os logs.
 
@@ -275,7 +275,9 @@ Abra `http://localhost:5173`, o mesmo origin definido em `PUBLIC_ORIGIN` no `.en
 
 Requisitos: PowerShell 7, Azure CLI com Bicep, uma assinatura Azure ativa, permissão para criar recursos e role assignments, quota dos modelos na região e capacidade de executar builds no ACR. Docker Desktop não é necessário: a imagem é compilada no Azure.
 
-**Compatibilidade de autenticação do grafo:** este adaptador usa o protocolo Gremlin com uma chave armazenada no Key Vault. A Managed Identity lê o segredo, mas não substitui essa chave na autenticação do protocolo. Se a governança exigir `disableLocalAuth=true` na conta Gremlin, esse adaptador não funciona: é necessário avaliar uma exceção formal aprovada ou uma arquitetura de grafo com autenticação compatível. O script detecta essa configuração e interrompe a publicação; não desabilita políticas nem reativa autenticação local automaticamente. Os serviços NoSQL, Storage e Azure OpenAI usam Entra ID.
+**Autenticação do grafo:** o Azure SQL Database usa Entra-only e a aplicação se conecta com Managed Identity, sem usuário/senha SQL ou chave de banco. Uma identidade separada de bootstrap cria o esquema e concede somente as permissões de dados necessárias à identidade de execução. A identidade da API/worker não é administradora do servidor. Cosmos NoSQL, Storage e Azure OpenAI também usam Entra ID.
+
+O usuário contido da aplicação é criado com `SID` correspondente ao **client ID** da Managed Identity e `TYPE=E`, conforme o contrato do Azure SQL para service principals. Isso evita consultas ao diretório e permissões amplas de leitura do Microsoft Graph. O object ID continua sendo utilizado nos role assignments Azure e na configuração do administrador Entra do servidor; os dois identificadores não são intercambiáveis.
 
 O script usa a assinatura informada em cada comando, sem alterar a assinatura padrão do CLI. Os parâmetros abaixo criam recursos dedicados, incluindo uma conta Azure OpenAI:
 
@@ -290,6 +292,7 @@ $senha = Read-Host "Senha da demo (minimo 24 caracteres)" -AsSecureString
   -ExpectedTenantId "<tenant-id>" `
   -ResourceGroupName "rg-cena-demo" `
   -Location "eastus2" `
+  -GraphLocation "centralus" `
   -DemoPassword $senha `
   -CreateOpenAiAccount `
   -OpenAiAccountName "<nome-globalmente-unico>" `
@@ -297,7 +300,7 @@ $senha = Read-Host "Senha da demo (minimo 24 caracteres)" -AsSecureString
   -OpenAiChatModelVersion "2026-03-05"
 ```
 
-O script provisiona ACR/Key Vault/identidade, bancos/Storage/modelos, compila a imagem e publica API e worker. `-PrepareOnly` provisiona a infraestrutura sem construir nem publicar a aplicação. Os nomes e versões de modelo dependem da disponibilidade e quota da sua assinatura.
+O script provisiona ACR/Key Vault/identidades, bancos/Storage/modelos, compila a imagem, executa um job de bootstrap do esquema SQL e publica API e worker. O bootstrap usa sua própria Managed Identity administrativa; a identidade da aplicação recebe somente permissões de dados no esquema `vkg`. `-PrepareOnly` provisiona a infraestrutura sem construir nem publicar a aplicação. `-BootstrapOnly` também inicializa o banco, mas não troca as revisões dos serviços. Os nomes e versões de modelo dependem da disponibilidade e quota da sua assinatura.
 
 Para reutilizar uma conta e deployments existentes, omita `-CreateOpenAiAccount` e informe:
 
@@ -307,6 +310,7 @@ Para reutilizar uma conta e deployments existentes, omita `-CreateOpenAiAccount`
   -ExpectedTenantId "<tenant-id>" `
   -ResourceGroupName "rg-cena-demo" `
   -Location "eastus2" `
+  -GraphLocation "centralus" `
   -ExistingOpenAiResourceId "<resource-id-da-conta>" `
   -ExistingOpenAiEndpoint "https://<conta>.openai.azure.com/" `
   -OpenAiChatDeploymentName "<deployment-multimodal>" `
@@ -315,7 +319,9 @@ Para reutilizar uma conta e deployments existentes, omita `-CreateOpenAiAccount`
 
 A URL é exibida ao final. A senha da demo fica no segredo `app-password` do Key Vault. `-DemoPassword` permite escolher uma senha conhecida sem lê-la pelo endpoint privado; sem esse parâmetro, o primeiro deploy gera uma senha aleatória. Para ler o segredo, é necessário RBAC **e** conectividade à VNet, inclusive ao usar o portal. O script não imprime a senha nem a salva nos outputs. Reimplantações sem `-DemoPassword` preservam o segredo existente; fornecê-lo explicitamente atualiza o segredo. Outputs sem segredos ficam em `.local\deploy`, ignorado pelo Git.
 
-Os containers `scenes` e `catalog` usam throughput dedicado; vetores não são suportados em uma conta com throughput compartilhado de banco. A configuração inicial totaliza **1.200 RU/s provisionados**: 400 em cada container NoSQL e 400 para o grafo Gremlin. Ajuste somente após medir o workload.
+Os containers `scenes` e `catalog` usam throughput dedicado: **800 RU/s provisionados** no total, 400 em cada container NoSQL. O grafo tem capacidade e cobrança separadas no Azure SQL Database; o perfil inicial usa Standard S0. Ajuste índices e capacidade após medir o workload.
+
+`-GraphLocation` permite escolher uma região disponível para o banco sem mover os vídeos ou o Cosmos DB. Quando a região do SQL difere da região dos containers, considere latência e custos de comunicação entre regiões. A conexão continua privada; o processamento da projeção é agrupado para reduzir viagens de rede.
 
 Private Endpoints, DNS privado e o ambiente de rede também têm custos. O modo local precisa de VPN, rede peered ou estação dentro da VNet para alcançar os serviços privados; a autenticação do CLI sozinha não fornece conectividade.
 
@@ -335,7 +341,7 @@ Para demonstrar identidade editorial nesse material, use um nome explicitamente 
 
 - Recursos de mídia privados e operações protegidas pela API. Acesso ao frontend não deve implicar acesso anônimo ao acervo.
 - Autenticação simplificada por senha de demo e cookie HttpOnly; não é uma implementação de identidade corporativa ou autorização multiusuário. Para produção, use Entra ID e autorização por acervo.
-- Managed Identity para serviços compatíveis. A credencial necessária ao cliente Gremlin fica em Key Vault, nunca no repositório.
+- Managed Identity para acesso a Cosmos NoSQL, SQL Graph, Storage e Azure OpenAI. A senha da interface de demonstração fica em Key Vault; o banco de grafos não usa chave nem senha.
 - O repositório deve conter somente código, infraestrutura, documentação e fontes dos exemplos. Não publique vídeos do acervo, chaves, cookies, metadados reais nem arquivos de ambiente.
 - Cosmos provisionado e réplicas mínimas têm custo mesmo sem buscas. Inferência, tokens de imagem, armazenamento, operações, logs e exportações têm custos variáveis. Limites de duração, concorrência e tamanho são controles de demo, não estimativas de capacidade de produção.
 - Um catálogo pequeno pode executar varredura vetorial: os índices `quantizedFlat` e `diskANN` exigem ao menos 1.000 vetores para a indexação quantizada descrita na documentação. Não use uma demo de poucas cenas como benchmark de escala.
@@ -344,7 +350,7 @@ Para demonstrar identidade editorial nesse material, use um nome explicitamente 
 ## Referências técnicas
 
 - [Busca vetorial no Cosmos DB NoSQL](https://learn.microsoft.com/en-us/azure/cosmos-db/vector-search)
-- [Cosmos DB Gremlin e compatibilidade](https://learn.microsoft.com/en-us/azure/cosmos-db/gremlin/support)
-- [Particionamento de grafos](https://learn.microsoft.com/en-us/azure/cosmos-db/gremlin/partitioning)
+- [Grafo nativo no Azure SQL Database](https://learn.microsoft.com/en-us/sql/relational-databases/graphs/sql-graph-overview?view=azuresqldb-current)
+- [Autenticação Entra-only no Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-azure-ad-only-authentication?view=azuresql)
 - [Saídas estruturadas no Azure OpenAI](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs)
 - [Video Indexer: funcionalidades de acesso limitado](https://learn.microsoft.com/en-us/azure/azure-video-indexer/limited-access-features)

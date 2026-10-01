@@ -21,11 +21,8 @@ function config() {
     cosmosDatabase: "db",
     scenesContainer: "scenes",
     catalogContainer: "catalog",
-    gremlinEndpoint: "wss://example.gremlin.cosmos.azure.com:443/",
-    gremlinDatabase: "graph-db",
-    gremlinGraph: "graph",
-    gremlinKey: "key",
-    gremlinPartitionKey: "/pk",
+    sqlGraphServer: "example.database.windows.net",
+    sqlGraphDatabase: "video-graph",
     openaiEndpoint: "https://example.openai.azure.com/",
     visionDeployment: "vision",
     embeddingDeployment: "embedding"

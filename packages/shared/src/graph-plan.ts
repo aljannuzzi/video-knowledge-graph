@@ -1,9 +1,18 @@
 import { createHash } from "node:crypto";
 import type { QueryPlan, Timecode } from "./index.js";
-import { normalizeLabel, observationEntityNames, observationEntityTypes, observationPredicates, symmetricPredicates } from "./ontology.js";
+import { normalizeLabel, observationEntityNames, observationEntityTypes, observationPredicates } from "./ontology.js";
 import { queryPlanSchema } from "./schemas.js";
 import { canVerifyConjunction, intersectIntervals } from "./temporal.js";
 import type { SceneRecord } from "./types.js";
+
+export type SqlParameter = {
+  name: string;
+  type: "nvarchar" | "int" | "float" | "bit";
+  value: string | number | boolean;
+  length?: number | "max";
+};
+
+type MatchRow = Record<string, unknown>;
 
 export function graphId(...parts: string[]): string {
   return createHash("sha256").update(JSON.stringify(parts)).digest("hex");
@@ -16,55 +25,139 @@ export function occurrenceId(scene: SceneRecord, entityId: string): string {
 }
 
 export function compileMatch(planInput: QueryPlan, scene: SceneRecord): {
-  script: string; bindings: Record<string, unknown>
+  sql: string;
+  script: string;
+  parameters: SqlParameter[];
+  bindings: Record<string, unknown>;
+  mapRow: (row: MatchRow) => MatchRow;
 } {
   const plan = queryPlanSchema.parse(planInput);
   const bindings: Record<string, unknown> = {
-    pk: scene.videoId, rootId: sceneVertexId(scene), version: scene.metadataVersion
+    rootId: sceneVertexId(scene),
+    videoId: scene.videoId,
+    sceneId: scene.id,
+    version: scene.metadataVersion,
+    ready: true
   };
-  let script = "g.V([pk,rootId]).hasLabel('Scene').has('metadataVersion',version).as('root')";
+  const parameters: SqlParameter[] = [
+    { name: "rootId", type: "nvarchar", value: sceneVertexId(scene), length: 130 },
+    { name: "videoId", type: "nvarchar", value: scene.videoId, length: 128 },
+    { name: "sceneId", type: "nvarchar", value: scene.id, length: 128 },
+    { name: "version", type: "nvarchar", value: scene.metadataVersion, length: 64 },
+    { name: "ready", type: "bit", value: true }
+  ];
+  const from = ["vkg.Node AS root", "vkg.ProjectionState AS ready"];
+  const where = [
+    "ready.rootNodeKey = root.nodeKey",
+    "ready.isReady = @ready",
+    "ready.videoId = @videoId",
+    "ready.sceneId = @sceneId",
+    "ready.metadataVersion = @version",
+    "root.nodeKey = @rootId",
+    "root.entityType = N'scene'",
+    "root.videoId = @videoId",
+    "root.sceneId = @sceneId",
+    "root.metadataVersion = @version"
+  ];
+  const select: string[] = [];
+  const patterns: string[] = [];
   const variables = new Map(plan.entities.map((entity, index) => [entity.variable, `v${index}`]));
   plan.entities.forEach((entity, index) => {
-    script += ".select('root').out('contains').hasLabel('Occurrence')";
+    const occurrence = `v${index}`;
+    const contains = `contains${index}`;
+    from.push(`vkg.Edge AS ${contains}`, `vkg.Node AS ${occurrence}`);
+    patterns.push(`root-(${contains})->${occurrence}`);
+    where.push(
+      `${contains}.label = N'contains'`,
+      `${contains}.isReverse = 0`,
+      `${contains}.metadataVersion = @version`,
+      `${occurrence}.videoId = @videoId`,
+      `${occurrence}.sceneId = @sceneId`,
+      `${occurrence}.metadataVersion = @version`
+    );
     if (entity.type) {
       const types = observationEntityTypes(entity.name, entity.type);
-      bindings[`type${index}`] = types.length === 1 ? types[0] : types;
-      script += `.has('entityType',${types.length === 1 ? `type${index}` : `within(type${index})`})`;
+      bindings[`type${index}`] = [...types];
+      parameters.push({ name: `type${index}`, type: "nvarchar", value: JSON.stringify(types), length: "max" });
+      where.push(`EXISTS (
+        SELECT 1
+        FROM OPENJSON(@type${index}) WITH (value NVARCHAR(32) '$') AS allowed
+        WHERE allowed.value = ${occurrence}.entityType
+      )`);
     }
     if (entity.actorName) {
+      from.push(`vkg.Edge AS identity${index}`, `vkg.Node AS actor${index}`);
+      patterns.push(`${occurrence}-(identity${index})->actor${index}`);
       bindings[`actor${index}`] = normalizeLabel(entity.actorName);
-      script += `.has('identitySource','editor').where(__.out('identifiedAs').hasLabel('Actor').has('nameNormalized',actor${index}))`;
+      parameters.push({ name: `actor${index}`, type: "nvarchar", value: normalizeLabel(entity.actorName), length: 200 });
+      where.push(
+        `${occurrence}.entityType = N'person'`,
+        `${occurrence}.identitySource = N'editor'`,
+        `identity${index}.label = N'identifiedAs'`,
+        `identity${index}.isReverse = 0`,
+        `identity${index}.videoId = @videoId`,
+        `identity${index}.sceneId = @sceneId`,
+        `identity${index}.metadataVersion = @version`,
+        `actor${index}.entityType = N'actor'`,
+        `actor${index}.nameNormalized = @actor${index}`
+      );
     } else if (normalizeLabel(entity.name) === "person") {
-      script += ".has('entityType','person')";
+      where.push(`${occurrence}.entityType = N'person'`);
     } else {
       const names = observationEntityNames(entity.name);
-      bindings[`name${index}`] = names.length === 1 ? names[0] : names;
-      script += `.has('nameNormalized',${names.length === 1 ? `name${index}` : `within(name${index})`})`;
+      bindings[`name${index}`] = [...names];
+      parameters.push({ name: `name${index}`, type: "nvarchar", value: JSON.stringify(names), length: "max" });
+      where.push(`EXISTS (
+        SELECT 1
+        FROM OPENJSON(@name${index}) WITH (value NVARCHAR(200) '$') AS allowed
+        WHERE allowed.value = ${occurrence}.nameNormalized
+      )`);
     }
-    for (let other = 0; other < index; other++) script += `.where(neq('v${other}'))`;
-    script += `.as('v${index}').limit(256)`;
+    for (let other = 0; other < index; other++) where.push(`${occurrence}.nodeKey <> v${other}.nodeKey`);
+    select.push(`${occurrence}.entityId AS entity${index}`);
   });
   plan.relations.forEach((relation, index) => {
+    const edge = `e${index}`;
     const accepted = observationPredicates(relation.predicate);
-    bindings[`predicate${index}`] = accepted.length === 1 ? accepted[0] : accepted;
-    const predicateFilter = accepted.length === 1 ? `predicate${index}` : `within(predicate${index})`;
-    const symmetric = symmetricPredicates.has(relation.predicate);
-    script += `.select('${variables.get(relation.subject)}').${symmetric ? "bothE" : "outE"}('observed')` +
-      `.has('metadataVersion',version).has('predicate',${predicateFilter}).as('r${index}')` +
-      `.${symmetric ? "otherV" : "inV"}().where(eq('${variables.get(relation.object)}')).limit(256)`;
+    bindings[`predicate${index}`] = [...accepted];
+    parameters.push({ name: `predicate${index}`, type: "nvarchar", value: JSON.stringify(accepted), length: "max" });
+    from.push(`vkg.Edge AS ${edge}`);
+    patterns.push(`${variables.get(relation.subject)}-(${edge})->${variables.get(relation.object)}`);
+    where.push(
+      `${edge}.label = N'observed'`,
+      `${edge}.videoId = @videoId`,
+      `${edge}.sceneId = @sceneId`,
+      `${edge}.metadataVersion = @version`,
+      `EXISTS (
+        SELECT 1
+        FROM OPENJSON(@predicate${index}) WITH (value NVARCHAR(64) '$') AS allowed
+        WHERE allowed.value = ${edge}.predicate
+      )`
+    );
+    select.push(
+      `${edge}.edgeKey AS relation${index}_id`,
+      `${edge}.startSeconds AS relation${index}_startSeconds`,
+      `${edge}.endSeconds AS relation${index}_endSeconds`
+    );
   });
-  const keys = [
-    ...plan.entities.map((_, index) => `'entity${index}'`),
-    ...plan.relations.map((_, index) => `'relation${index}'`)
-  ];
-  // Limit bounds Cartesian work/output; retrieval is explicitly non-exhaustive.
-  script += `.limit(256).project(${keys.join(",")})`;
-  plan.entities.forEach((_, index) => { script += `.by(__.select('v${index}').values('entityId'))`; });
-  plan.relations.forEach((_, index) => {
-    script += `.by(__.select('r${index}').project('id','startSeconds','endSeconds')` +
-      ".by(id()).by('startSeconds').by('endSeconds'))";
-  });
-  return { script, bindings };
+  const sql = `SELECT DISTINCT TOP (256)
+  ${select.join(",\n  ")}
+FROM ${from.join(",\n     ")}
+WHERE ${where.join("\n  AND ")}
+  AND MATCH(${patterns.join(" AND ")})`;
+  const mapRow = (row: MatchRow): MatchRow => {
+    const record: MatchRow = {};
+    plan.entities.forEach((_, index) => { record[`entity${index}`] = row[`entity${index}`]; });
+    plan.relations.forEach((_, index) => {
+      record[`relation${index}`] = {
+        id: row[`relation${index}_id`],
+        startSeconds: row[`relation${index}_startSeconds`],
+        endSeconds: row[`relation${index}_endSeconds`]
+      };
+    });
+    return record;
+  };
+  return { sql, script: sql, parameters, bindings, mapRow };
 }
 
 export function intervalsFromRows(rows: unknown[], plan: QueryPlan, bounds: Timecode): Timecode[] {

@@ -43,9 +43,9 @@ test("aquatic containers match stored object/place classifications through safe 
 });
 test("native query compiler binds safe alias sets rather than interpolating labels", () => {
   const compiled = compileMatch(plan, { videoId: "v", id: "s", metadataVersion: "1" } as SceneRecord);
-  assert.match(compiled.script, /within\(name0\)/);
-  assert.match(compiled.script, /within\(name1\)/);
-  assert.match(compiled.script, /within\(type1\)/);
+  assert.match(compiled.script, /OPENJSON\(@name0\)/);
+  assert.match(compiled.script, /OPENJSON\(@name1\)/);
+  assert.match(compiled.script, /OPENJSON\(@type1\)/);
   assert.deepEqual(compiled.bindings.type1, ["object", "place"]);
   assert.deepEqual(compiled.bindings.name0, ["sea lion", "sea-lion", "sealion"]);
 });

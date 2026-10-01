@@ -9,6 +9,9 @@ param location string = resourceGroup().location
 @description('Azure Container Registry login server created by bootstrap.')
 param containerRegistryLoginServer string
 
+@description('Azure Container Registry name created by bootstrap.')
+param containerRegistryName string
+
 @description('Key Vault name created by bootstrap.')
 param keyVaultName string
 
@@ -26,6 +29,12 @@ param workerImage string = ''
 
 @description('Set to false to skip the API and worker container app deployment.')
 param deployApps bool = true
+
+@description('Container image for the manual SQL graph bootstrap job.')
+param bootstrapImage string = ''
+
+@description('Set to true to deploy or update the manual SQL graph bootstrap job.')
+param deployBootstrapJob bool = false
 
 @secure()
 @description('Only supplied when initializing or explicitly rotating the demo password.')
@@ -85,19 +94,25 @@ param openAiEmbeddingsDeploymentSkuName string = 'GlobalStandard'
 @description('Embeddings deployment capacity for a dedicated Azure OpenAI deployment.')
 param openAiEmbeddingsDeploymentCapacity int = 10
 
+@description('Azure region for dedicated Azure SQL Graph resources.')
+param graphLocation string = 'centralus'
+
+@description('Azure SQL database SKU name for the dedicated graph database.')
+param graphSku string = 'S0'
+
 var suffix = toLower(uniqueString(resourceGroup().id, workloadName))
 var compactPrefix = take(replace(toLower(workloadName), '-', ''), 10)
 var storageName = take('${compactPrefix}${suffix}st', 24)
 var cosmosSqlName = take('${compactPrefix}${suffix}sql', 44)
-var cosmosGremlinName = take('${compactPrefix}${suffix}gremlin', 44)
 var logAnalyticsName = '${workloadName}-logs'
 var containerEnvironmentName = '${workloadName}-private-env'
 var cosmosDatabaseName = 'video-kg'
-var gremlinDatabaseName = 'video-kg'
-var gremlinGraphName = 'knowledge'
 var jobsQueueName = 'jobs'
 var appPasswordSecretName = 'app-password'
-var gremlinKeySecretName = 'gremlin-key'
+var bootstrapJobName = '${workloadName}-graph-bootstrap'
+var graphBootstrapIdentityName = '${workloadName}-graph-bootstrap-uami'
+var graphBootstrapIdentityId = resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', graphBootstrapIdentityName)
+var bootstrapRuntimeUser = 'video-kg-runtime'
 var openAiResourceIdParts = split(empty(existingOpenAiResourceId) ? '/subscriptions/placeholder/resourceGroups/placeholder/providers/Microsoft.CognitiveServices/accounts/placeholder' : existingOpenAiResourceId, '/')
 var existingOpenAiSubscriptionId = openAiResourceIdParts[2]
 var existingOpenAiResourceGroupName = openAiResourceIdParts[4]
@@ -111,6 +126,7 @@ var storageBlobDataContributorRoleDefinitionId = subscriptionResourceId('Microso
 var storageQueueDataContributorRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
 var openAiUserRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
 var cosmosSqlDataContributorRoleDefinitionResourceId = '${cosmosSql.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002'
+var acrPullRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
@@ -118,6 +134,10 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
 
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: managedIdentityName
+}
+
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: containerRegistryName
 }
 
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
@@ -292,59 +312,6 @@ resource catalogContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/co
   }
 }
 
-resource cosmosGremlin 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
-  name: cosmosGremlinName
-  location: location
-  kind: 'GlobalDocumentDB'
-  properties: {
-    capabilities: [
-      {
-        name: 'EnableGremlin'
-      }
-    ]
-    consistencyPolicy: {
-      defaultConsistencyLevel: 'Session'
-    }
-    databaseAccountOfferType: 'Standard'
-    locations: [
-      {
-        failoverPriority: 0
-        isZoneRedundant: false
-        locationName: location
-      }
-    ]
-    publicNetworkAccess: 'Disabled'
-  }
-}
-
-resource gremlinDatabase 'Microsoft.DocumentDB/databaseAccounts/gremlinDatabases@2024-05-15' = {
-  name: '${cosmosGremlin.name}/${gremlinDatabaseName}'
-  properties: {
-    options: {
-      throughput: 400
-    }
-    resource: {
-      id: gremlinDatabaseName
-    }
-  }
-}
-
-resource knowledgeGraph 'Microsoft.DocumentDB/databaseAccounts/gremlinDatabases/graphs@2024-05-15' = {
-  name: '${gremlinDatabase.name}/${gremlinGraphName}'
-  properties: {
-    resource: {
-      id: gremlinGraphName
-      partitionKey: {
-        kind: 'Hash'
-        paths: [
-          '/videoId'
-        ]
-        version: 2
-      }
-    }
-  }
-}
-
 resource sharedIdentityCanAccessBlobs 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(storage.id, managedIdentityPrincipalId, storageBlobDataContributorRoleDefinitionId)
   scope: storage
@@ -370,14 +337,6 @@ resource demoPassword 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empt
   name: appPasswordSecretName
   properties: {
     value: appPassword
-  }
-}
-
-resource graphKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: gremlinKeySecretName
-  properties: {
-    value: cosmosGremlin.listKeys().primaryMasterKey
   }
 }
 
@@ -468,7 +427,29 @@ module privateNetwork 'modules/private-network.bicep' = {
     keyVaultId: keyVault.id
     storageId: storage.id
     sqlAccountId: cosmosSql.id
-    gremlinAccountId: cosmosGremlin.id
+  }
+}
+
+module sqlGraph 'sql-graph.bicep' = {
+  name: 'sql-graph'
+  params: {
+    workloadName: workloadName
+    location: location
+    graphLocation: graphLocation
+    graphSku: graphSku
+    privateEndpointSubnetId: privateNetwork.outputs.privateEndpointSubnetId
+    privateDnsVirtualNetworkId: privateNetwork.outputs.virtualNetworkId
+    runtimeManagedIdentityPrincipalId: managedIdentityPrincipalId
+  }
+}
+
+resource graphBootstrapIdentityCanPullImages 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, graphBootstrapIdentityId, acrPullRoleDefinitionId)
+  scope: containerRegistry
+  properties: {
+    principalId: sqlGraph.outputs.graphBootstrapIdentityPrincipalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: acrPullRoleDefinitionId
   }
 }
 
@@ -500,7 +481,6 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
   name: '${workloadName}-api'
   location: location
   dependsOn: [
-    graphKey
     demoPassword
   ]
   identity: {
@@ -530,11 +510,6 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
           identity: managedIdentity.id
           keyVaultUrl: '${keyVault.properties.vaultUri}secrets/${appPasswordSecretName}'
           name: appPasswordSecretName
-        }
-        {
-          identity: managedIdentity.id
-          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/${gremlinKeySecretName}'
-          name: gremlinKeySecretName
         }
       ]
     }
@@ -613,20 +588,12 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
               value: 'catalog'
             }
             {
-              name: 'GREMLIN_ENDPOINT'
-              value: 'wss://${cosmosGremlin.name}.gremlin.cosmos.azure.com:443/'
+              name: 'SQL_GRAPH_SERVER'
+              value: sqlGraph.outputs.sqlGraphServerFqdn
             }
             {
-              name: 'GREMLIN_DATABASE'
-              value: gremlinDatabaseName
-            }
-            {
-              name: 'GREMLIN_GRAPH'
-              value: gremlinGraphName
-            }
-            {
-              name: 'GREMLIN_KEY'
-              secretRef: gremlinKeySecretName
+              name: 'SQL_GRAPH_DATABASE'
+              value: sqlGraph.outputs.sqlGraphDatabase
             }
             {
               name: 'AZURE_OPENAI_ENDPOINT'
@@ -697,7 +664,6 @@ resource workerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
   name: '${workloadName}-worker'
   location: location
   dependsOn: [
-    graphKey
     demoPassword
   ]
   identity: {
@@ -721,11 +687,6 @@ resource workerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
           identity: managedIdentity.id
           keyVaultUrl: '${keyVault.properties.vaultUri}secrets/${appPasswordSecretName}'
           name: appPasswordSecretName
-        }
-        {
-          identity: managedIdentity.id
-          keyVaultUrl: '${keyVault.properties.vaultUri}secrets/${gremlinKeySecretName}'
-          name: gremlinKeySecretName
         }
       ]
     }
@@ -792,20 +753,12 @@ resource workerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
               value: 'catalog'
             }
             {
-              name: 'GREMLIN_ENDPOINT'
-              value: 'wss://${cosmosGremlin.name}.gremlin.cosmos.azure.com:443/'
+              name: 'SQL_GRAPH_SERVER'
+              value: sqlGraph.outputs.sqlGraphServerFqdn
             }
             {
-              name: 'GREMLIN_DATABASE'
-              value: gremlinDatabaseName
-            }
-            {
-              name: 'GREMLIN_GRAPH'
-              value: gremlinGraphName
-            }
-            {
-              name: 'GREMLIN_KEY'
-              secretRef: gremlinKeySecretName
+              name: 'SQL_GRAPH_DATABASE'
+              value: sqlGraph.outputs.sqlGraphDatabase
             }
             {
               name: 'AZURE_OPENAI_ENDPOINT'
@@ -875,17 +828,96 @@ resource workerApp 'Microsoft.App/containerApps@2024-03-01' = if (deployApps) {
   }
 }
 
-output apiUrl string = deployApps ? 'https://${reference(resourceId('Microsoft.App/containerApps', '${workloadName}-api'), '2024-03-01', 'Full').properties.configuration.ingress.fqdn}' : ''
+resource bootstrapJob 'Microsoft.App/jobs@2024-03-01' = if (deployBootstrapJob && !empty(bootstrapImage)) {
+  name: bootstrapJobName
+  location: location
+  dependsOn: [
+    graphBootstrapIdentityCanPullImages
+  ]
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${graphBootstrapIdentityId}': {}
+    }
+  }
+  properties: {
+    environmentId: containerEnvironment.id
+    configuration: {
+      manualTriggerConfig: {
+        parallelism: 1
+        replicaCompletionCount: 1
+      }
+      registries: [
+        {
+          identity: graphBootstrapIdentityId
+          server: containerRegistryLoginServer
+        }
+      ]
+      replicaRetryLimit: 0
+      replicaTimeout: 600
+      triggerType: 'Manual'
+    }
+    template: {
+      containers: [
+        {
+          command: [
+            'node'
+            'apps/worker/dist/bootstrapGraph.js'
+          ]
+          env: [
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: sqlGraph.outputs.graphBootstrapIdentityClientId
+            }
+            {
+              name: 'BOOTSTRAP_RUNTIME_USER'
+              value: bootstrapRuntimeUser
+            }
+            {
+              name: 'SQL_GRAPH_DATABASE'
+              value: sqlGraph.outputs.sqlGraphDatabase
+            }
+            {
+              name: 'NODE_ENV'
+              value: 'production'
+            }
+            {
+              name: 'RUNTIME_IDENTITY_CLIENT_ID'
+              value: managedIdentity.properties.clientId
+            }
+            {
+              name: 'SQL_GRAPH_SERVER'
+              value: sqlGraph.outputs.sqlGraphServerFqdn
+            }
+          ]
+          image: bootstrapImage
+          name: 'bootstrap'
+          resources: {
+            cpu: json('0.5')
+            memory: '1Gi'
+          }
+        }
+      ]
+    }
+  }
+}
+
+output apiUrl string = deployApps ? 'https://${apiApp!.properties.configuration.ingress.fqdn}' : ''
 output containerEnvironmentName string = containerEnvironment.name
 output cosmosEndpoint string = cosmosSql.properties.documentEndpoint
 output cosmosAccountName string = cosmosSql.name
-output gremlinAccountName string = cosmosGremlin.name
-output gremlinEndpoint string = 'wss://${cosmosGremlin.name}.gremlin.cosmos.azure.com:443/'
-output gremlinDatabase string = gremlinDatabaseName
-output gremlinGraph string = gremlinGraphName
 output keyVaultName string = keyVault.name
 output keyVaultUri string = keyVault.properties.vaultUri
+output bootstrapJobName string = bootstrapJobName
+output graphBootstrapIdentityClientId string = sqlGraph.outputs.graphBootstrapIdentityClientId
+output graphBootstrapIdentityId string = sqlGraph.outputs.graphBootstrapIdentityId
+output graphBootstrapIdentityPrincipalId string = sqlGraph.outputs.graphBootstrapIdentityPrincipalId
 output managedIdentityId string = managedIdentity.id
+output managedIdentityClientId string = managedIdentity.properties.clientId
+output managedIdentityPrincipalId string = managedIdentity.properties.principalId
+output sqlGraphDatabase string = sqlGraph.outputs.sqlGraphDatabase
+output sqlGraphServerFqdn string = sqlGraph.outputs.sqlGraphServerFqdn
+output sqlGraphServerName string = sqlGraph.outputs.sqlGraphServerName
 output storageAccount string = storage.name
 output jobsQueueName string = jobsQueueName
 output videoContainerName string = 'videos'

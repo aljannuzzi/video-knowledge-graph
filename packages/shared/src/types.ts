@@ -13,11 +13,8 @@ export interface Config {
   cosmosDatabase: string;
   scenesContainer: string;
   catalogContainer: string;
-  gremlinEndpoint: string;
-  gremlinDatabase: string;
-  gremlinGraph: string;
-  gremlinKey: string;
-  gremlinPartitionKey: string;
+  sqlGraphServer: string;
+  sqlGraphDatabase: string;
   openaiEndpoint: string;
   visionDeployment: string;
   embeddingDeployment: string;

@@ -53,11 +53,11 @@ test("actor matching requires explicit editor identity", () => {
 });
 test("bounded native template reuses the sofa alias and binds all untrusted values", () => {
   const query = compileMatch(plan, scene);
-  assert.equal((query.script.match(/\.(inV|otherV)\(\)\.where\(eq\('v1'\)\)/g) ?? []).length, 2);
-  assert.match(query.script, /\.limit\(256\)/);
+  assert.match(query.script, /MATCH\(root-\(contains0\)->v0 AND root-\(contains1\)->v1 AND root-\(contains2\)->v2 AND v0-\(e0\)->v1 AND v2-\(e1\)->v1\)/);
+  assert.match(query.script, /TOP \(256\)/);
   const malicious = compileMatch({ entities: [{ variable: "p", name: "x');g.V().drop();//" }], relations: [], explanation: "test" }, scene);
   assert.ok(!malicious.script.includes("drop"));
-  assert.equal(malicious.bindings.name0, "x');g.v().drop();//");
+  assert.deepEqual(malicious.bindings.name0, ["x');g.v().drop();//"]);
   assert.throws(() => compileMatch({ ...plan, entities: [{ variable: "p');drop(", name: "person" }] }, scene));
 });
 test("symmetric observations match either direction without weakening sofa binding", () => {
@@ -65,7 +65,7 @@ test("symmetric observations match either direction without weakening sofa bindi
     relation("r1", "p1", "sitting_on", "s1"),
     relation("r2", "s1", "next_to", "d1")
   ], bounds).length, 1);
-  assert.match(compileMatch(plan, scene).script, /\.bothE\('observed'\)/);
+  assert.match(compileMatch(plan, scene).script, /v2-\(e1\)->v1/);
 });
 test("occurrence keys include video scene and metadata version", () => {
   assert.notEqual(occurrenceId(scene, "p1"), occurrenceId({ ...scene, metadataVersion: "2" }, "p1"));
@@ -101,7 +101,7 @@ test("anonymous age categories remain searchable without accepting visual identi
   const child: SceneEntity = { id: "c1", name: "child", type: "person", confidence: 0.9 };
   const generic: QueryPlan = { entities: [{ variable: "p", name: "person", type: "person" }], relations: [], explanation: "Any person" };
   assert.equal(matchTemporal(generic, [child], [], bounds).length, 1);
-  assert.match(compileMatch(generic, scene).script, /\.has\('entityType','person'\)/);
+  assert.match(compileMatch(generic, scene).script, /v0\.entityType = N'person'/);
   assert.equal(validateVisualAnalysis({ caption: "Child", entities: [child], relations: [], tags: [] }, bounds).entities[0].name, "child");
 });
 test("known ontology types are identical in model queries and observations", () => {

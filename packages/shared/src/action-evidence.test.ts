@@ -73,8 +73,9 @@ test("native graph proof must match active stored edge identifiers, endpoints an
     source: occurrenceId(scene, r.subject), target: occurrenceId(scene, r.object),
     label: r.predicate, ...r.timecode
   }));
-  const graph = new Graph({} as Config, { getScene: async () => scene }, {
-    submit: async script => ({ toArray: () => script.includes(".project('id','label','type')") ? nodes : edges }),
+  const graph = new Graph({} as Config, { getScene: async () => scene }, undefined, {
+    query: async <T extends Record<string, unknown>>(sql: string) => (sql.includes("nodes.id") ? nodes : edges) as unknown as T[],
+    transaction: async action => action({ id: Symbol("tx") }),
     close: async () => undefined
   });
   assert.deepEqual(await graph.matchEvidence(scene, plan, proof), { startSeconds: 2, endSeconds: 8 });

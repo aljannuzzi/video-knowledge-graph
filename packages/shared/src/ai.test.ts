@@ -8,8 +8,8 @@ import { queryPlanJsonSchema, visualSchemaForWindow } from "./schemas.js";
 const environment = {
   ENVIRONMENT: "local", LOCAL_AUTH_DISABLED: "true", AZURE_STORAGE_ACCOUNT: "teststore",
   COSMOS_ENDPOINT: "https://test.documents.azure.com:443/",
-  GREMLIN_ENDPOINT: "wss://separate.gremlin.cosmos.azure.com:443/",
-  GREMLIN_KEY: "test-only-placeholder-key", AZURE_OPENAI_ENDPOINT: "https://test.openai.azure.com",
+  SQL_GRAPH_SERVER: "test-sql.database.windows.net",
+  AZURE_OPENAI_ENDPOINT: "https://test.openai.azure.com",
   AZURE_OPENAI_VISION_DEPLOYMENT: "gpt-4.1"
 };
 const config = loadConfig(environment);
@@ -22,7 +22,7 @@ test("startup validates local bypass, cloud password, dimensions/limits and mode
   assert.throws(() => loadConfig({ ...environment, ENVIRONMENT: "azure" }));
   assert.throws(() => loadConfig({ ...environment, MAX_VIDEO_SECONDS: "181" }));
   assert.throws(() => loadConfig({ ...environment, AZURE_OPENAI_VISION_DEPLOYMENT: "" }));
-  assert.throws(() => loadConfig({ ...environment, GREMLIN_ENDPOINT: "ws://insecure.example" }));
+  assert.throws(() => loadConfig({ ...environment, SQL_GRAPH_SERVER: "ws://insecure.example" }));
 });
 test("actual v1 embedding request uses Entra and exactly 1536 dimensions", async () => {
   const ai = new AI(config, credential, fetcher((url, body, headers) => {

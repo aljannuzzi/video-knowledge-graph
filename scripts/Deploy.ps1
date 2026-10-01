@@ -16,8 +16,11 @@ param(
     [string]$OpenAiChatModelVersion = '2026-03-05',
     [int]$OpenAiChatDeploymentCapacity = 20,
     [string]$OpenAiEmbeddingsDeploymentName = 'scene-embedding',
+    [string]$GraphLocation = 'centralus',
+    [string]$GraphSku = 'S0',
     [string]$ImageTag = (Get-Date -Format 'yyyyMMddHHmmss'),
     [switch]$PrepareOnly,
+    [switch]$BootstrapOnly,
     [switch]$SkipBuild,
     [SecureString]$DemoPassword,
     [string]$OutputPath = ''
@@ -82,11 +85,13 @@ Save-Outputs 'bootstrap.json' $bootstrap
 $params = @{
     workloadName = $WorkloadName
     location = $Location
+    containerRegistryName = $bootstrap.containerRegistryName.value
     containerRegistryLoginServer = $bootstrap.containerRegistryLoginServer.value
     keyVaultName = $bootstrap.keyVaultName.value
     managedIdentityName = $bootstrap.managedIdentityName.value
     managedIdentityPrincipalId = $bootstrap.managedIdentityPrincipalId.value
     deployApps = $false
+    deployBootstrapJob = $false
     existingOpenAiResourceId = $ExistingOpenAiResourceId
     existingOpenAiEndpoint = $ExistingOpenAiEndpoint
     createOpenAiAccount = $CreateOpenAiAccount.IsPresent
@@ -97,6 +102,8 @@ $params = @{
     openAiChatModelVersion = $OpenAiChatModelVersion
     openAiChatDeploymentCapacity = $OpenAiChatDeploymentCapacity
     openAiEmbeddingsDeploymentName = $OpenAiEmbeddingsDeploymentName
+    graphLocation = $GraphLocation
+    graphSku = $GraphSku
 }
 
 $vaultResourceId = $bootstrap.keyVaultId.value
@@ -116,12 +123,6 @@ $infrastructure = Deploy-Template "$WorkloadName-data" (Join-Path $repoRoot 'inf
 Save-Outputs 'infra.json' $infrastructure.properties.outputs
 $params.Remove('appPassword')
 $plainPassword = $null
-
-$graphAccount = Invoke-AzJson @('cosmosdb', 'show', '--resource-group', $ResourceGroupName,
-    '--name', $infrastructure.properties.outputs.gremlinAccountName.value)
-if ($graphAccount.disableLocalAuth -eq $true) {
-    throw 'The Gremlin account has local authentication disabled. This driver uses key-based Gremlin authentication and cannot operate in this configuration. Obtain an approved policy exception or choose a supported graph authentication architecture; this script will not weaken the control.'
-}
 
 if ($PrepareOnly) {
     Write-Host "Infrastructure ready. Non-secret outputs: $OutputPath"
@@ -149,6 +150,23 @@ else {
     } while ($true)
 }
 
+Write-Host 'Deploying SQL graph bootstrap job definition...'
+$params.deployBootstrapJob = $true
+$params.bootstrapImage = $image
+$bootstrapJob = Deploy-Template "$WorkloadName-graph-bootstrap" (Join-Path $repoRoot 'infra\main.bicep') $params
+Save-Outputs 'graph-bootstrap.json' $bootstrapJob.properties.outputs
+
+$bootstrapExecution = & (Join-Path $PSScriptRoot 'BootstrapGraph.ps1') `
+    -SubscriptionId $SubscriptionId `
+    -ResourceGroupName $ResourceGroupName `
+    -JobName $bootstrapJob.properties.outputs.bootstrapJobName.value
+Save-Outputs 'graph-bootstrap-execution.json' $bootstrapExecution
+
+if ($BootstrapOnly) {
+    Write-Host 'SQL Graph schema and runtime grants initialized; API and worker revisions were not switched.'
+    return
+}
+
 $params.deployApps = $true
 $params.apiImage = $image
 $params.workerImage = $image
@@ -160,5 +178,6 @@ $url = $apps.properties.outputs.apiUrl.value
 $health = Invoke-RestMethod -Uri "$url/health" -TimeoutSec 30
 if ($health.status -ne 'ok') { throw 'The application did not report healthy after deployment.' }
 Write-Host "Application: $url"
+Write-Host "SQL graph: $($apps.properties.outputs.sqlGraphServerFqdn.value) / $($apps.properties.outputs.sqlGraphDatabase.value)"
 Write-Host "Demo password: Key Vault $($bootstrap.keyVaultName.value), secret app-password (not printed)."
 Write-Host "Non-secret deployment outputs: $OutputPath"

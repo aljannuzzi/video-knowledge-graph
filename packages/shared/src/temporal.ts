@@ -28,7 +28,7 @@ export function canVerifyConjunction(plan: QueryPlan): boolean {
 }
 
 // A deterministic reference evaluator for tests. Production uses the compiled
-// native Gremlin traversal, then intersects the returned observed-edge intervals.
+// native SQL Graph MATCH query, then intersects the observed-edge intervals.
 export function matchTemporal(
   plan: QueryPlan, entities: SceneEntity[], relations: SceneRelation[], bounds: Timecode
 ): Array<{ bindings: Record<string, string>; timecode: Timecode }> {

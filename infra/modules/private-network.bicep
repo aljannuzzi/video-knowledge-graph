@@ -3,7 +3,6 @@ param workloadName string
 param keyVaultId string
 param storageId string
 param sqlAccountId string
-param gremlinAccountId string
 
 resource vnet 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: '${workloadName}-vnet'
@@ -43,7 +42,6 @@ var zoneNames = [
   'privatelink.blob.core.windows.net'
   'privatelink.queue.core.windows.net'
   'privatelink.documents.azure.com'
-  'privatelink.gremlin.cosmos.azure.com'
 ]
 resource zones 'Microsoft.Network/privateDnsZones@2024-06-01' = [for name in zoneNames: {
   name: name
@@ -64,7 +62,6 @@ var endpoints = [
   { name: 'blob', resourceId: storageId, group: 'blob', zones: [1] }
   { name: 'queue', resourceId: storageId, group: 'queue', zones: [2] }
   { name: 'sql', resourceId: sqlAccountId, group: 'Sql', zones: [3] }
-  { name: 'gremlin', resourceId: gremlinAccountId, group: 'Gremlin', zones: [3, 4] }
 ]
 resource privateEndpoints 'Microsoft.Network/privateEndpoints@2024-05-01' = [for endpoint in endpoints: {
   name: '${workloadName}-${endpoint.name}-pe'
@@ -97,3 +94,5 @@ resource zoneGroups 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@202
 }]
 
 output infrastructureSubnetId string = '${vnet.id}/subnets/apps'
+output privateEndpointSubnetId string = '${vnet.id}/subnets/private-endpoints'
+output virtualNetworkId string = vnet.id

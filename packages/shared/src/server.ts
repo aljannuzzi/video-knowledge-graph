@@ -14,7 +14,7 @@ export function createServices(config: Config) {
   return {
     config, store, blobs: new Blobs(config, credential),
     queue: new Queue(config, credential, store),
-    ai: new AI(config, credential), graph: new Graph(config, store)
+    ai: new AI(config, credential), graph: new Graph(config, store, credential)
   };
 }
 
@@ -24,6 +24,8 @@ export { publicScene, publicJob, publicVideo } from "./store.js";
 export { blobNameFromUri } from "./blobs.js";
 export { sceneEmbeddingText } from "./ai.js";
 export { search } from "./search.js";
+export { createGraphRuntimeGrantSql, graphSchemaNames, graphSchemaSql, initializeGraphSchema } from "./graph-schema.js";
+export { createGraphSqlClient } from "./graph.js";
 export { searchRequestSchema, clipRequestSchema, identityRequestSchema } from "./schemas.js";
 export { GraphAccessError, ValidationError, isPermanentError } from "./types.js";
 export type { Config, SceneRecord, JobRecord, QueueMessage } from "./types.js";

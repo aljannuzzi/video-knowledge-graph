@@ -4,6 +4,7 @@ import { searchRequestSchema } from "./schemas.js";
 import type { AI } from "./ai.js";
 import type { Store } from "./store.js";
 import type { Graph } from "./graph.js";
+import { entityMatches } from "./temporal.js";
 
 export async function search(
   services: {
@@ -24,6 +25,9 @@ export async function search(
     const scene = await services.store.getScene(candidate.scene.videoId, candidate.scene.id);
     if (!scene || scene.graphStatus !== "ready" || scene.metadataVersion !== candidate.scene.metadataVersion ||
         !Number.isFinite(candidate.distance)) continue;
+    // Reject impossible candidates before the cross-region graph call; every
+    // surviving result still requires native MATCH and active-version checks.
+    if (!plan.entities.every(expected => scene.entities.some(entity => entityMatches(entity, expected)))) continue;
     const intervals = await services.graph.match(scene, plan);
     if (!intervals.length) continue;
     let matchedTimecode = intervals[0];

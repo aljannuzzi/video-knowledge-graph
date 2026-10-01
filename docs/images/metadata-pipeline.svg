@@ -23,7 +23,7 @@
   <text x="1134" y="231" class="tag">04 / PERSISTENCIA</text><text x="1134" y="270" class="h">Cosmos NoSQL</text>
   <text x="1134" y="306" class="s">Metadados + vetores</text><text x="1134" y="332" class="s">Proveniencia + versao</text>
   <path d="M1246 355V417" class="a"/>
-  <text x="1134" y="452" class="h">Cosmos Gremlin</text><text x="1134" y="488" class="s">Projecao reconstruivel</text>
+  <text x="1134" y="452" class="h">Azure SQL Graph</text><text x="1134" y="488" class="s">Projecao reconstruivel</text>
   <text x="1134" y="514" class="s">Relacoes no tempo e no espaco</text>
   <path d="M1037 270H1110" class="a"/>
   <rect x="48" y="403" width="989" height="142" class="b"/>

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
   <title id="title">CENA: arquitetura de busca de cenas com grafo temporal</title>
-  <desc id="desc">API e worker no Azure Container Apps. Cosmos NoSQL armazena estado canonico e vetores. Cosmos Gremlin e uma projecao versionada das relacoes. Blob guarda videos e clips. Azure OpenAI analisa frames e interpreta consultas. A identidade de atores e editorial.</desc>
+  <desc id="desc">API e worker no Azure Container Apps. Cosmos NoSQL armazena estado canonico e vetores. Azure SQL Graph guarda uma projecao nativa versionada das relacoes e usa Entra ID com Managed Identity. Blob guarda videos e clips. Azure OpenAI analisa frames e interpreta consultas. A identidade de atores e editorial.</desc>
   <defs>
     <marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#b11f4b" stroke-width="1.5"/></marker>
     <style>
@@ -23,7 +23,7 @@
   <text x="822" y="270" class="head">Worker de midia e projecao</text>
   <text x="822" y="305" class="body">FFprobe / frames temporizados / analise multimodal</text>
   <text x="822" y="333" class="body">Validacao de entidades, relacoes e intervalos</text>
-  <text x="822" y="361" class="body">Embeddings / projecao Gremlin / FFmpeg / ZIP</text>
+  <text x="822" y="361" class="body">Embeddings / projecao SQL Graph / FFmpeg / ZIP</text>
   <text x="822" y="399" class="small">Jobs duraveis, progresso, retry e IDs deterministas</text>
   <path d="M636 293H798" class="line"/>
   <text x="661" y="276" class="small">Fila Storage</text>
@@ -36,10 +36,10 @@
   <text x="72" y="703" class="small">Busca vetorial e metadados canonicos</text>
   <rect x="388" y="530" width="304" height="207" class="box"/>
   <text x="412" y="563" class="tag">PROJECAO CONSULTAVEL</text>
-  <text x="412" y="601" class="head">Cosmos DB Gremlin</text>
+  <text x="412" y="601" class="head">Azure SQL Graph</text>
   <text x="412" y="635" class="body">Ocorrencias / relacoes / ator</text>
   <text x="412" y="663" class="body">Versao + tempo + evidencias</text>
-  <text x="412" y="703" class="small">Grafo nativo, nao apenas arrays JSON</text>
+  <text x="412" y="703" class="small">NODE / EDGE / MATCH + Entra ID</text>
   <rect x="728" y="530" width="304" height="207" class="box"/>
   <text x="752" y="563" class="tag">ARTEFATOS PRIVADOS</text>
   <text x="752" y="601" class="head">Azure Blob Storage</text>

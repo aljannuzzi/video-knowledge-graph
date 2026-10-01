@@ -11,6 +11,7 @@
     "test": "node --test dist/*.test.js"
   },
   "dependencies": {
+    "@azure/identity": "^4.9.0",
     "@vkg/shared": "file:../../packages/shared",
     "archiver": "^7.0.1"
   },

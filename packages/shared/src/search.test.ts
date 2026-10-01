@@ -28,7 +28,9 @@ function services() {
   };
 }
 test("nonexistent search yields no fabricated hits even with a high vector score", async () => {
-  const result = await search(services(), { query: "nonexistent unicorn" });
+  const deps = services();
+  deps.graph.match = async () => { throw new Error("Missing entities must be filtered before native traversal"); };
+  const result = await search(deps, { query: "nonexistent unicorn" });
   assert.deepEqual(result.hits, []);
   assert.equal(result.exhaustive, false);
   assert.equal(result.retrieval, "vector-graph");
@@ -51,6 +53,7 @@ test("edited versions invalidate candidates and pending graphs are never used", 
 });
 test("an edit during traversal suppresses the now-stale match", async () => {
   const deps = services();
+  deps.ai.plan = async () => ({ ...plan, entities: [{ variable: "x", name: "person" }] });
   let reads = 0;
   deps.store.getScene = async () => ++reads === 1 ? scene : { ...scene, metadataVersion: "2" };
   deps.graph.match = async () => [scene.timecode];

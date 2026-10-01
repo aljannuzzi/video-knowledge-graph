@@ -58,13 +58,13 @@ for (const [query, subjects] of [
   });
 }
 
-test("native Gremlin uses a bounded parameterized entailment set, not rewritten observations", () => {
+test("native SQL uses a bounded parameterized entailment set, not rewritten observations", () => {
   const query = compileMatch(plan(["c"]), scene);
-  assert.match(query.script, /\.has\('predicate',within\(predicate0\)\)/);
+  assert.match(query.script, /OPENJSON\(@predicate0\)/);
   assert.deepEqual(query.bindings.predicate0, ["on", "sitting_on", "standing_on", "lying_on"]);
   const strict = compileMatch(plan(["c"], "sitting_on"), scene);
-  assert.equal(strict.bindings.predicate0, "sitting_on");
-  assert.doesNotMatch(strict.script, /within\(predicate0\)/);
+  assert.deepEqual(strict.bindings.predicate0, ["sitting_on"]);
+  assert.match(strict.script, /OPENJSON\(@predicate0\)/);
 });
 
 test("posture entails on in one direction; near/under/table seating do not entail on", () => {

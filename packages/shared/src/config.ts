@@ -22,11 +22,8 @@ const envSchema = z.object({
   COSMOS_DATABASE: resource.default("video-kg"),
   COSMOS_SCENES_CONTAINER: resource.default("scenes"),
   COSMOS_CATALOG_CONTAINER: resource.default("catalog"),
-  GREMLIN_ENDPOINT: secureUrl("wss:"),
-  GREMLIN_DATABASE: resource.default("video-kg"),
-  GREMLIN_GRAPH: resource.default("knowledge"),
-  GREMLIN_KEY: z.string().min(16),
-  GREMLIN_PARTITION_KEY: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/).default("videoId"),
+  SQL_GRAPH_SERVER: z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}\.database\.windows\.net$/i),
+  SQL_GRAPH_DATABASE: resource.default("video-graph"),
   AZURE_OPENAI_ENDPOINT: secureUrl("https:"),
   AZURE_OPENAI_VISION_DEPLOYMENT: resource,
   AZURE_OPENAI_EMBEDDING_DEPLOYMENT: resource.default("text-embedding-3-large"),
@@ -49,11 +46,6 @@ const envSchema = z.object({
       ctx.addIssue({ code: "custom", path: ["PUBLIC_ORIGIN"], message: "Exact origin required; HTTPS in Azure" });
     }
   }
-  try {
-    if (new URL(env.COSMOS_ENDPOINT).hostname.split(".")[0] === new URL(env.GREMLIN_ENDPOINT).hostname.split(".")[0]) {
-      ctx.addIssue({ code: "custom", path: ["GREMLIN_ENDPOINT"], message: "Use a separate Gremlin account" });
-    }
-  } catch { /* URL schemas supply the invalid-URL issue. */ }
 });
 
 export function loadConfig(input: NodeJS.ProcessEnv = process.env): Config {
@@ -73,9 +65,8 @@ export function loadConfig(input: NodeJS.ProcessEnv = process.env): Config {
     maxVideoSeconds: env.MAX_VIDEO_SECONDS, storageAccount: env.AZURE_STORAGE_ACCOUNT,
     queueName: env.AZURE_STORAGE_QUEUE, cosmosEndpoint: env.COSMOS_ENDPOINT,
     cosmosDatabase: env.COSMOS_DATABASE, scenesContainer: env.COSMOS_SCENES_CONTAINER,
-    catalogContainer: env.COSMOS_CATALOG_CONTAINER, gremlinEndpoint: env.GREMLIN_ENDPOINT,
-    gremlinDatabase: env.GREMLIN_DATABASE, gremlinGraph: env.GREMLIN_GRAPH,
-    gremlinKey: env.GREMLIN_KEY, gremlinPartitionKey: env.GREMLIN_PARTITION_KEY,
+    catalogContainer: env.COSMOS_CATALOG_CONTAINER, sqlGraphServer: env.SQL_GRAPH_SERVER,
+    sqlGraphDatabase: env.SQL_GRAPH_DATABASE,
     openaiEndpoint: env.AZURE_OPENAI_ENDPOINT.replace(/\/+$/, ""),
     visionDeployment: env.AZURE_OPENAI_VISION_DEPLOYMENT,
     embeddingDeployment: env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,

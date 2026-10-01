@@ -20,7 +20,7 @@
     "@azure/identity": "^4.9.0",
     "@azure/storage-blob": "^12.27.0",
     "@azure/storage-queue": "^12.26.0",
-    "gremlin": "3.4.13",
+    "mssql": "^11.0.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
